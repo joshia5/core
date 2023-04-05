@@ -199,31 +199,43 @@ void adapt(ma::Input* in)
     fail("mesh must be bezier to adapt\n");
 
   in->shapeHandler = crv::getShapeHandler;
-  ma::print("Curved Adaptation Version 2.0 !");
+  ma::print("Curved Adaptation Version 2.0 ! : test modify for build");
   double t0 = PCU_Time();
+  printf("ok1\n");
   ma::validateInput(in);
+  printf("ok2\n");
   Adapt* a = new Adapt(in);
+  printf("ok3\n");
   ma::preBalance(a);
+  printf("ok4\n");
 
   fixInvalidElements(a);
 
   for (int i=0; i < in->maximumIterations; ++i)
   {
     ma::print("iteration %d",i);
-    ma::coarsen(a);
+    if (in->shouldCoarsen) {
+      //ma::coarsen(a);
+    }
     ma::midBalance(a);
+  printf("ok5\n");
     crv::refine(a);
-    allowSplitCollapseOutsideLayer(a);
+    //allowSplitCollapseOutsideLayer(a);
+  printf("ok6\n");
     flagCleaner(a); // all true-flags must be false before using markEntities
-    fixCrvElementShapes(a);
+    if (in->shouldFixShape) {
+      fixCrvElementShapes(a);
+    }
   }
 
-  allowSplitCollapseOutsideLayer(a);
+  //allowSplitCollapseOutsideLayer(a);
 
   if (in->maximumIterations > 0) {
     fixInvalidElements(a);
     flagCleaner(a); // all true-flags must be false before using markEntities
-    fixCrvElementShapes(a);
+    if (in->shouldFixShape) {
+      fixCrvElementShapes(a);
+    }
   }
   cleanupLayer(a);
   ma::printQuality(a);

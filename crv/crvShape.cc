@@ -761,14 +761,15 @@ static void repositionInvalidEdges(Adapt* a)
 
 int fixInvalidEdges(Adapt* a)
 {
-  int count = markEdgesToFix(a,ma::BAD_QUALITY | ma::COLLAPSE );
+  //int count = markEdgesToFix(a,ma::BAD_QUALITY | ma::COLLAPSE );
+  int count = markEdgesToFix(a,ma::BAD_QUALITY);
   if (! count){
     return 0;
   }
 
   if(a->mesh->getShape()->getOrder() == 2)
     repositionInvalidEdges(a);
-  collapseInvalidEdges(a);
+  //collapseInvalidEdges(a);
   swapInvalidEdges(a);
   return count;
 }
