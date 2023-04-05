@@ -1141,7 +1141,7 @@ void WriteCGNS(const char *prefix, apf::Mesh *m, const apf::CGNSBCMap &cgnsBCMap
 
 namespace apf
 {
-
+/*
 void writeCGNS(const char *prefix, Mesh *m, const apf::CGNSBCMap &cgnsBCMap)
 {
 #ifdef HAVE_CGNS
@@ -1152,5 +1152,6 @@ void writeCGNS(const char *prefix, Mesh *m, const apf::CGNSBCMap &cgnsBCMap)
   exit(EXIT_FAILURE);
 #endif
 }
+*/
 
 } // namespace apf

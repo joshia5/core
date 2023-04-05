@@ -198,10 +198,10 @@ int getMdsIndex(Mesh2* in, MeshEntity* e);
   so call apf::reorderMdsMesh after any mesh modification. */
 MeshEntity* getMdsEntity(Mesh2* in, int dimension, int index);
 
-Mesh2* loadMdsFromCGNS(gmi_model* g, const char* filename, CGNSBCMap& cgnsBCMap);
+//Mesh2* loadMdsFromCGNS(gmi_model* g, const char* filename, CGNSBCMap& cgnsBCMap);
 
 // names of mesh data to read from file: (VERTEX, VelocityX; CellCentre, Pressure)
-Mesh2* loadMdsFromCGNS(gmi_model* g, const char* filename, CGNSBCMap& cgnsBCMap, const std::vector<std::pair<std::string, std::string>>& meshData);
+//Mesh2* loadMdsFromCGNS(gmi_model* g, const char* filename, CGNSBCMap& cgnsBCMap, const std::vector<std::pair<std::string, std::string>>& meshData);
 
 int gmshMajorVersion(const char* filename);
 

@@ -663,8 +663,8 @@ struct CGNSInfo
 };
 
 //using CGNSBCMap = std::map<std::string, std::vector<std::tuple<std::string, apf::MeshTag *, int>>>;
-using CGNSBCMap = std::map<std::string, std::vector<CGNSInfo>>;
-void writeCGNS(const char *prefix, Mesh *m, const CGNSBCMap &cgnsBCMap);
+//using CGNSBCMap = std::map<std::string, std::vector<CGNSInfo>>;
+//void writeCGNS(const char *prefix, Mesh *m, const CGNSBCMap &cgnsBCMap);
 
 /** \brief Write a set of parallel VTK Unstructured Mesh files from an apf::Mesh
   * with binary (base64) encoding and zlib compression (if LION_COMPRESS=ON)
