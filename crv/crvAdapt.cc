@@ -61,14 +61,23 @@ static void setTags(Adapt* a, ma::Entity* e, int tags)
 void splitEdges(ma::Adapt* a)
 {
   PCU_ALWAYS_ASSERT(ma::checkFlagConsistency(a,1,ma::SPLIT));
+  //printf("split edges 1\n");
   ma::Refine* r = a->refine;
+  //printf("split edges 2\n");
   ma::resetCollection(r);
+  //printf("split edges 3\n");
   ma::collectForTransfer(r);
+  printf("split edges 4\n");
   ma::addAllMarkedEdges(r);
+  printf("split edges 5\n");
   ma::splitElements(r);
+  printf("split edges 6\n");
   ma::processNewElements(r);
+  printf("split edges 7\n");
   ma::destroySplitElements(r);
+  printf("split edges 8\n");
   ma::forgetNewEntities(r);
+  printf("split edges 9\n");
 }
 
 static void refine(ma::Adapt* a)
@@ -209,18 +218,25 @@ void adapt(ma::Input* in)
   ma::preBalance(a);
   printf("ok4\n");
 
-  fixInvalidElements(a);
+  if (in->shouldCoarsen) {
+    //printf("fixing invalid elems\n");
+    fixInvalidElements(a);
+  }
+  printf("ok4.5\n");
 
   for (int i=0; i < in->maximumIterations; ++i)
   {
     ma::print("iteration %d",i);
     if (in->shouldCoarsen) {
-      //ma::coarsen(a);
+      ma::coarsen(a);
     }
     ma::midBalance(a);
-  printf("ok5\n");
+    printf("ok5\n");
+    //apf::synchronize(in->sizeField->sizes);
     crv::refine(a);
-    //allowSplitCollapseOutsideLayer(a);
+    if (in->shouldCoarsen) {
+      allowSplitCollapseOutsideLayer(a);
+    }
   printf("ok6\n");
     flagCleaner(a); // all true-flags must be false before using markEntities
     if (in->shouldFixShape) {
@@ -228,9 +244,11 @@ void adapt(ma::Input* in)
     }
   }
 
-  //allowSplitCollapseOutsideLayer(a);
+  if (in->shouldCoarsen) {
+    allowSplitCollapseOutsideLayer(a);
+  }
 
-  if (in->maximumIterations > 0) {
+  if (in->maximumIterations > 0 && in->shouldCoarsen) {
     fixInvalidElements(a);
     flagCleaner(a); // all true-flags must be false before using markEntities
     if (in->shouldFixShape) {

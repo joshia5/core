@@ -245,13 +245,56 @@ bool checkFlagConsistency(Adapt* a, int dimension, int flag)
   m->end(it);
   PCU_Comm_Send();
   bool ok = true;
+  std::vector<Entity*> entFlagsToFlip;
   while (PCU_Comm_Receive()) {
     PCU_COMM_UNPACK(e);
     bool value;
     PCU_COMM_UNPACK(value);
-    if(value != getFlag(a,e,flag))
-      ok = false;
+    if(value != getFlag(a,e,flag)) { //detect mismatch
+      //ok = false; original stmnt.
+
+      if(1) { // for COLLAPSE we will clear inconsistency and carry on
+              //     if(flag==SPLIT || flag==COLLAPSE) { // for COLLAPSE we will clear inconsistency and carry on
+        entFlagsToFlip.push_back(e); //buffer the mismatched ents
+        if(getFlag(a,e,flag) != 1) clearFlag(a,e,flag);
+        Entity* v[2]; // find and print the coordinates to stderr so we know where fixes applied
+        m->getDownward(e,0,v);
+        Vector x1 = getPosition(m, v[0]);
+        Vector x2 = getPosition(m, v[1]);
+        fprintf(stderr, "rank %d badflag xyz %15.10g %15.10g %15.10g %15.10g %15.10g %15.10g \n", PCU_Comm_Self(), x1.x(), x1.y(), x1.z(), x2.x(), x2.y(), x2.z());
+      } else {
+        ok = false; // for other flags maintain the checkAndQuit approach
+      }
+    }
   }
+
+  //begin another communication round
+  PCU_Comm_Begin();
+  //loop over the ents that need the flags flipped/cleared
+  for(int i=0; i<entFlagsToFlip.size(); i++) {
+    e = entFlagsToFlip[i]; //get the ent
+    apf::CopyArray others;
+    sh->getCopies(e, others);
+    if (!others.getSize())
+      continue;
+    //this ent has remote copies
+    APF_ITERATE(apf::CopyArray, others, rit) {
+      //pack the remote copy
+      PCU_COMM_PACK(rit->peer, rit->entity);
+    }
+  }
+  // crashed with this still here so commenting  m->end(it);
+  //send all the packed messages
+  PCU_Comm_Send();
+  //listen for incoming messages
+  while (PCU_Comm_Receive()) {
+    //unpack the entity
+    PCU_COMM_UNPACK(e);
+    //clear the flag
+    // assert(flag==COLLAPSE);
+    clearFlag(a,e,flag);
+  }
+
   delete sh;
   return ok;
 }

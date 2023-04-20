@@ -402,14 +402,22 @@ long markEdgesToSplit(Adapt* a)
 
 void processNewElements(Refine* r)
 {
+  printf("process new 1\n");
   linkNewVerts(r);
+  printf("process new 2\n");
   if (PCU_Comm_Peers()>1) {
     apf::stitchMesh(r->adapt->mesh);
+    printf("process new 3\n");
     r->adapt->mesh->acceptChanges();
+    printf("process new 4\n");
   }
-  if (r->adapt->input->shouldHandleMatching)
+  if (r->adapt->input->shouldHandleMatching) {
+    printf("process new 5\n");
     matchNewElements(r);
+  }
+  printf("process new 6\n");
   transferElements(r);
+  printf("process new 7\n");
 }
 
 void cleanupAfter(Refine* r)
