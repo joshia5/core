@@ -239,16 +239,31 @@ static double getDesiredSize(Estimation* e, apf::MeshEntity* entity)
   return h * errorNorm * e->size_factor;
 }
 
+static double getErrorNorm(Estimation* e, apf::MeshEntity* entity)
+{
+  Error2 errorNormIntegrator(e);
+  apf::MeshElement* element = apf::createMeshElement(e->mesh, entity);
+  errorNormIntegrator.process(element);
+  double errorNorm = errorNormIntegrator.r;
+  return errorNorm;
+}
+
 static void getElementSizeField(Estimation* e)
 {
   apf::Field* eSize = apf::createStepField(e->mesh, "esize", apf::SCALAR);
   int d = e->mesh->getDimension();
   apf::MeshEntity* entity;
   apf::MeshIterator* elements = e->mesh->begin(d);
+  double totalErrNorm, glo_totalErrNorm = 0.;
   while ((entity = e->mesh->iterate(elements))) {
     double h = getDesiredSize(e, entity);
     apf::setScalar(eSize, entity, 0, h);
+    totalErrNorm += getErrorNorm(e, entity);
   }
+  MPI_Allreduce(&totalErrNorm, &glo_totalErrNorm, 1, MPI_DOUBLE, MPI_SUM,
+      PCU_Get_Comm());
+  if (!PCU_Comm_Self())
+    lion_eprint(1,"Total. Estimated Error = %1.10f\n", totalErrNorm);
   e->mesh->end(elements);
   e->element_size = eSize;
 }
