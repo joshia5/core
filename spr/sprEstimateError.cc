@@ -254,16 +254,26 @@ static void getElementSizeField(Estimation* e)
   int d = e->mesh->getDimension();
   apf::MeshEntity* entity;
   apf::MeshIterator* elements = e->mesh->begin(d);
-  double totalErrNorm, glo_totalErrNorm = 0.;
+  double totalErrNorm, totalVolume = 0.;
+  double glo_totalErrNorm, glo_totalVolume = 0.;
   while ((entity = e->mesh->iterate(elements))) {
     double h = getDesiredSize(e, entity);
+    double v = apf::measure(e->mesh, entity);
     apf::setScalar(eSize, entity, 0, h);
-    totalErrNorm += getErrorNorm(e, entity);
+    v = 1.;//just avg. for now
+    totalVolume += v;
+    totalErrNorm += getErrorNorm(e, entity)*v;
   }
   MPI_Allreduce(&totalErrNorm, &glo_totalErrNorm, 1, MPI_DOUBLE, MPI_SUM,
       PCU_Get_Comm());
-  if (!PCU_Comm_Self())
-    lion_eprint(1,"Total. Estimated Error = %1.10f\n", totalErrNorm);
+  MPI_Allreduce(&totalVolume, &glo_totalVolume, 1, MPI_DOUBLE, MPI_SUM,
+      PCU_Get_Comm());
+  if (!PCU_Comm_Self()) {
+    lion_eprint(1,"Total Vol = %1.10f\n",
+       glo_totalVolume);
+    lion_eprint(1,"Total Estimated Error = %1.10f\n",
+       glo_totalErrNorm/glo_totalVolume);
+  }
   e->mesh->end(elements);
   e->element_size = eSize;
 }
