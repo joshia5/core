@@ -273,14 +273,15 @@ void Mesh::boundingBox(ModelEntity* g,
   gmi_bbox(getModel(), e, &bmin[0], &bmax[0]);
 }
 
-bool Mesh::isOnModel(ModelEntity* g, Vector3 p, double scale)
+bool Mesh::isOnModel(ModelEntity* g, Vector3 p, double scale, double tol)
 {
   Vector3 to;
   double param[2];
   gmi_ent* c = (gmi_ent*)g;
   gmi_closest_point(getModel(), c, &p[0], &to[0], param);
   double ratio = (to - p).getLength() / scale;
-  return ratio < 0.001;
+  return ratio < tol;
+  //return ratio < 0.001;
 }
 
 void Mesh::getPoint(MeshEntity* e, int node, Vector3& p)

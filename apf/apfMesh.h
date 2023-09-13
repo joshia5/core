@@ -325,7 +325,7 @@ class Mesh
     /** \brief get the bounding box of the model entity g */
     void boundingBox(ModelEntity* g, Vector3& bmin, Vector3& bmax);
     /** \brief checks if p is on model g */
-    bool isOnModel(ModelEntity* g, Vector3 p, double scale);
+    bool isOnModel(ModelEntity* g, Vector3 p, double scale, double tol=0.001);
     /** \brief get the distribution of the mesh's coordinate field */
     FieldShape* getShape() const;
     /** \brief get the mesh's coordinate field */

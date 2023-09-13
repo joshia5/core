@@ -48,6 +48,8 @@ void transferParametricOnGeometricTriSplit(
     apf::Vector3& t,
     apf::Vector3& p);
 
+void computeMeanDist(apf::Mesh2* m); 
+
 }
 
 #endif

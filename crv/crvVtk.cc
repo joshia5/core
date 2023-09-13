@@ -1002,11 +1002,11 @@ void writeCurvedWireFrame(apf::Mesh* m, int n, const char* prefix)
 void writeCurvedVtuFiles(apf::Mesh* m, int type, int n, const char* prefix)
 {
   double t0 = PCU_Time();
-  if (!PCU_Comm_Self()) {
+  //if (!PCU_Comm_Self()) {
     makeDirectories(prefix, type, n);
     writePvtuFile(getPvtuDirectoryStr(prefix, type, n).c_str(),"",m,type);
-  }
-  PCU_Barrier();
+  //}
+  //PCU_Barrier();
 
   std::stringstream ss;
   ss << getVtuDirectoryStr(prefix, type, n) << "/order_"
@@ -1055,7 +1055,7 @@ void writeCurvedVtuFiles(apf::Mesh* m, int type, int n, const char* prefix)
     file << buf.rdbuf();
   }
 
-  PCU_Barrier();
+  //PCU_Barrier();
   double t1 = PCU_Time();
   if (!PCU_Comm_Self())
     lion_oprint(1,"%s vtk files %s written in %f seconds\n",

@@ -82,6 +82,7 @@ static void setupRecovery(Recovery* r, apf::Field* f)
   r->mesh = apf::getMesh(f);
   r->dim = r->mesh->getDimension();
   r->order = r->mesh->getShape()->getOrder();
+  if (r->order > 2) r->order = 2;
   r->polynomial_terms = countPolynomialTerms(r->dim, r->order);
   r->points_per_element = determinePointsPerElement(f);
   r->f = f;

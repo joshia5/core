@@ -460,19 +460,19 @@ static long verifyCoords(Mesh* m)
 
 long verifyVolumes(Mesh* m, bool printVolumes)
 {
-  MeshIterator* it = m->begin(m->getDimension());
-  MeshEntity* e;
+  MeshIterator* it2 = m->begin(m->getDimension());
+  MeshEntity* e2;
   long n = 0;
-  while ((e = m->iterate(it)))
+  while ((e2 = m->iterate(it2)))
   {
-    if (!isSimplex(m->getType(e)))
+    if (!isSimplex(m->getType(e2)))
       continue;
-    double v = measure(m,e);
+    double v = measure(m,e2);
     if (v < 0) {
       if (printVolumes) {
         std::stringstream ss;
         ss << "warning: element volume " << v
-          << " at " << getLinearCentroid(m, e) << '\n';
+          << " at " << getLinearCentroid(m, e2) << '\n';
         std::string s = ss.str();
         lion_oprint(1, "%s", s.c_str());
         fflush(stdout);
@@ -480,7 +480,7 @@ long verifyVolumes(Mesh* m, bool printVolumes)
       ++n;
     }
   }
-  m->end(it);
+  m->end(it2);
   return PCU_Add_Long(n);
 }
 
