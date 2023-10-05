@@ -896,6 +896,8 @@ static void migrate2(Mesh2* m, Migration* plan)
 
 void migrateSilent(Mesh2* m, Migration* plan)
 {
+  printf("migrate silent plan count %d migration limit %d\n", plan->count(),
+      migrationLimit);
   if (PCU_Or(static_cast<size_t>(plan->count()) > migrationLimit))
     migrate2(m, plan);
   else

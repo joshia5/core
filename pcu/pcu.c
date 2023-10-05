@@ -138,8 +138,10 @@ int PCU_Comm_Pack(int to_rank, const void* data, size_t size)
 {
   if (global_state == uninit)
     reel_fail("Comm_Pack called before Comm_Init");
-  if ((to_rank < 0)||(to_rank >= pcu_mpi_size()))
+  if ((to_rank < 0)||(to_rank >= pcu_mpi_size())) {
+    fprintf(stderr, "to_rank %d\n", to_rank);
     reel_fail("Invalid rank in Comm_Pack");
+  }
   if ( size > (size_t)INT_MAX ) {
 	  fprintf(stderr, "ERROR Attempting to pack a PCU message whose size exceeds INT_MAX... exiting\n");
 	  abort();
