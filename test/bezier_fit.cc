@@ -17,6 +17,14 @@
 #include <pcu_util.h>
 #include <ostream>
 
+#include <gmi_mesh.h>
+#include <gmi_sim.h>
+#include <SimUtil.h>
+#include <MeshSim.h>
+#include <SimModel.h>
+#include <cstdlib>
+
+
 /* This file contains miscellaneous tests relating to bezier fitting
  */
 
@@ -24,38 +32,35 @@ int main(int argc, char** argv) {
   MPI_Init(&argc,&argv);
   PCU_Comm_Init();
   lion_set_verbosity(1);
-#ifdef HAVE_SIMMETRIX
   MS_init();
   SimModel_start();
   Sim_readLicenseFile(0);
   gmi_sim_start();
   gmi_register_sim();
-#endif
   gmi_register_mesh();
  
-  if ( argc != 3 ) {
+  if ( argc != 4 ) {
     if ( !PCU_Comm_Self() )
-      printf("Usage: %s <model> <mesh>\n", argv[0]);
+      printf("Usage: %s <model> <mesh> order\n", argv[0]);
     MPI_Finalize();
     exit(EXIT_FAILURE);
   }
-  modelFile = argv[1];
-  meshFile = argv[2];
 
   gmi_model* g = 0;
-  g = gmi_load(modelFile);
+  g = gmi_load(argv[1]);
   apf::Mesh2* m = 0;
-  m = apf::loadMdsMesh(g, meshFile);
+  int order = atoi(argv[3]);
+  m = apf::loadMdsMesh(g, argv[2]);
+  crv::BezierCurver bc(m,order,0);
+  bc.run();
 
-  // set the order
-  apf::FieldShape* bezierShape = crv::getBezier(order);
-  int non = bezierShape->getEntityShape(type)->countNodes();
-  apf::Vector3 xi(xi0, xi1, xi2);
-  apf::NewArray<double> vals(non);
+  m->destroyNative();
+  apf::destroyMesh(m);
 
-  crv::setBlendingOrder(type, b);
-  crv::BlendedTetGetValues(m,ent,xi,vals);
-
+  gmi_sim_stop();
+  Sim_unregisterAllKeys();
+  SimModel_stop();
+  MS_exit(); 
   PCU_Comm_Free();
   MPI_Finalize();
 }
