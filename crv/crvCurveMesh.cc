@@ -976,26 +976,32 @@ void snapToInterpolate(apf::Mesh2* m, apf::MeshEntity* e, bool isNew)
   }
 
   // sample model entity into m points for fitting
-  int m_dataPts = 16;
-  for(int i = 0; i < m_dataPts; ++i){
-    apf::ModelEntity* g = m->toModel(e);
-    //fs->getNodeXi(type,i,xi);
-    if(type == apf::Mesh::EDGE) {
-      xi[0] = i/(1.*m_dataPts);
-      transferParametricOnEdgeSplit(m,e,xi[0],p);
+  // consider the gauss 66 tri case
+  if (m->getModelType(m->toModel(e)) == 1) {
+    if ((m->getModelTag(m->toModel(e))) == 19) {   
+      int m_dataPts = 16;
+      for(int i = 0; i < m_dataPts; ++i){
+        apf::ModelEntity* g = m->toModel(e);
+        //fs->getNodeXi(type,i,xi);
+        if(type == apf::Mesh::EDGE) {
+          xi[0] = i/(1.*m_dataPts);
+          transferParametricOnEdgeSplit(m,e,xi[0],p);
+        }
+        //else
+        //transferParametricOnTriSplit(m,e,xi,p);
+        m->snapToModel(g,p,pt);
+        printf("%f,%f,%f\n", pt[0], pt[1], pt[2]);
+        //if (isNew || !m->canGetClosestPoint()) {
+        //m->setPoint(e,i,pt);
+        //continue;
+        //}
+        //m->getPoint(e,i,pt0);
+        //if (!m->isOnModel(g, pt0, lengthScale))
+        //m->setPoint(e,i,pt);
+      }
     }
-    //else
-      //transferParametricOnTriSplit(m,e,xi,p);
-    m->snapToModel(g,p,pt);
-    printf("sample pt i %d is {%f,%f,%f}\n",i, pt[0], pt[1], pt[2]);
-    //if (isNew || !m->canGetClosestPoint()) {
-      //m->setPoint(e,i,pt);
-      //continue;
-    //}
-    //m->getPoint(e,i,pt0);
-    //if (!m->isOnModel(g, pt0, lengthScale))
-      //m->setPoint(e,i,pt);
   }
+
 }
 
 void MeshCurver::synchronize()

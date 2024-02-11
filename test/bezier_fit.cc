@@ -39,18 +39,18 @@ int main(int argc, char** argv) {
   gmi_register_sim();
   gmi_register_mesh();
  
-  if ( argc != 4 ) {
-    if ( !PCU_Comm_Self() )
-      printf("Usage: %s <model> <mesh> order\n", argv[0]);
+  if (argc != 5) {
+    if (!PCU_Comm_Self())
+      printf("Usage: %s <nat-model> <model> <mesh> order\n", argv[0]);
     MPI_Finalize();
     exit(EXIT_FAILURE);
   }
 
   gmi_model* g = 0;
-  g = gmi_load(argv[1]);
+  g = gmi_sim_load(argv[1], argv[2]);
   apf::Mesh2* m = 0;
-  int order = atoi(argv[3]);
-  m = apf::loadMdsMesh(g, argv[2]);
+  m = apf::loadMdsMesh(g, argv[3]);
+  int order = atoi(argv[4]);
   crv::BezierCurver bc(m,order,0);
   bc.run();
 
