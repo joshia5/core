@@ -977,27 +977,59 @@ void snapToInterpolate(apf::Mesh2* m, apf::MeshEntity* e, bool isNew)
 
   // sample model entity into m points for fitting
   // consider the gauss 66 tri case
-  if (m->getModelType(m->toModel(e)) == 1) {
-    if ((m->getModelTag(m->toModel(e))) == 19) {   
-      int m_dataPts = 16;
-      for(int i = 0; i < m_dataPts; ++i){
-        apf::ModelEntity* g = m->toModel(e);
-        //fs->getNodeXi(type,i,xi);
-        if(type == apf::Mesh::EDGE) {
-          xi[0] = i/(1.*m_dataPts);
-          transferParametricOnEdgeSplit(m,e,xi[0],p);
+  {
+    const double B_inv [4][21] = {
+      0.544042913608131,0.364765669113495,0.220779220779221,0.108789760963674,0.0255034820252211,-0.0323734236777716,-0.0681347637869377,-0.0850743459439111,-0.0864859777903257,-0.0756634669678148,-0.0559006211180124,-0.0304912478825522,-0.00272915490306784,0.0240918501788068,0.0466779597214381,0.0617353660831923,0.0659702616224356,0.0560888386975344,0.0287972896668549,-0.0191981931112366,-0.0911914172783739,
+      -0.776094276094276,-0.319509797770668,0.0251430068363709,0.2696075571743,0.425627272690583,0.504945572832682,0.519305877048059,0.480451604784175,0.400126175488494,0.290073008608478,0.162035523591588,0.0277571398852863,-0.101018723062964,-0.212548645805702,-0.295089208895464,-0.336896992884789,-0.326228578326214,-0.251340545772277,-0.100489475775517,0.138068051111529,0.476075454336324,
+      0.476075454336324,0.13806805111153,-0.100489475775517,-0.251340545772277,-0.326228578326214,-0.336896992884788,-0.295089208895464,-0.212548645805701,-0.101018723062964,0.0277571398852864,0.162035523591588,0.290073008608478,0.400126175488494,0.480451604784175,0.519305877048058,0.504945572832682,0.425627272690583,0.2696075571743,0.0251430068363705,-0.319509797770667,-0.776094276094276,
+      -0.0911914172783738,-0.0191981931112366,0.0287972896668551,0.0560888386975343,0.0659702616224355,0.0617353660831921,0.046677959721438,0.0240918501788067,-0.00272915490306796,-0.0304912478825523,-0.0559006211180124,-0.0756634669678148,-0.0864859777903256,-0.0850743459439111,-0.0681347637869377,-0.0323734236777715,0.0255034820252212,0.108789760963674,0.220779220779221,0.364765669113495,0.544042913608131
+    };
+    const int m_dataPts = 20;
+    double data_x[m_dataPts+1];
+    double data_y[m_dataPts+1];
+    double data_z[m_dataPts+1];
+    //double data_y[m_dataPts+1];
+    if (m->getModelType(m->toModel(e)) == 1) {
+      if ((m->getModelTag(m->toModel(e))) == 19) {   
+        for(int i = 0; i <= m_dataPts; ++i){ // ignore the pts on vtx
+          apf::ModelEntity* g = m->toModel(e);
+          //fs->getNodeXi(type,i,xi);
+          if(type == apf::Mesh::EDGE) {
+            xi[0] = i/(1.*m_dataPts);
+            transferParametricOnEdgeSplit(m,e,xi[0],p);
+          }
+          //else
+          //transferParametricOnTriSplit(m,e,xi,p);
+          m->snapToModel(g,p,pt);
+          data_x[i] = pt[0];
+          data_y[i] = pt[1];
+          data_z[i] = pt[2];
+          //printf("%.10f,%.10f,%.10f,%.10f\n", std::pow((1.-xi[0]),3), 3*xi[0]*std::pow((1.-xi[0]),2), 3*(1.-xi[0])*std::pow(xi[0],2), std::pow(xi[0],3), xi[0]);
+          //printf("%.10f,%.10f,%.10f,%.10f,%.10f,%.10f,%.10f,%.10f\n", pt[0], pt[1], pt[2],
+              //std::pow((1.-xi[0]),3), 3*xi[0]*std::pow((1.-xi[0]),2), 3*(1.-xi[0])*std::pow(xi[0],2), std::pow(xi[0],3), xi[0]);
+          //if (isNew || !m->canGetClosestPoint()) {
+          //m->setPoint(e,i,pt);
+          //continue;
+          //}
+          //m->getPoint(e,i,pt0);
+          //if (!m->isOnModel(g, pt0, lengthScale))
+          //m->setPoint(e,i,pt);
         }
-        //else
-        //transferParametricOnTriSplit(m,e,xi,p);
-        m->snapToModel(g,p,pt);
-        printf("%f,%f,%f\n", pt[0], pt[1], pt[2]);
-        //if (isNew || !m->canGetClosestPoint()) {
-        //m->setPoint(e,i,pt);
-        //continue;
-        //}
-        //m->getPoint(e,i,pt0);
-        //if (!m->isOnModel(g, pt0, lengthScale))
-        //m->setPoint(e,i,pt);
+        double c_x[2], c_y[2], c_z[2];
+        const int order=3; // cubic for now
+        for (int i=0; i<order-1; ++i) {
+          c_x[i] = 0.;
+          c_y[i] = 0.;
+          c_z[i] = 0.;
+          for (int j=0; j<=m_dataPts; ++j) {
+            c_x[i] += B_inv[i+1][j]*data_x[j];
+            c_y[i] += B_inv[i+1][j]*data_y[j];
+            c_z[i] += B_inv[i+1][j]*data_z[j];
+          }
+        }
+        printf("computed control points x: %.16f, %.16f\n",c_x[0],c_x[1]);
+        printf("computed control points y: %.16f, %.16f\n",c_y[0],c_y[1]);
+        printf("computed control points z: %.16f, %.16f\n",c_z[0],c_z[1]);
       }
     }
   }
@@ -1463,3 +1495,4 @@ void computeMeanDist(apf::Mesh2* m) {
 
 }
 // namespace crv
+
