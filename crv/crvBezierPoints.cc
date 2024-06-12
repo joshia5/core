@@ -61,9 +61,12 @@ static void getHigherBezierNodeXi(int type, int P, int node, apf::Vector3& xi)
 
 void getBezierNodeXi(int type, int P, int node, apf::Vector3& xi)
 {
+  //fprintf(stderr, "in getBezierNodeXi\n");
   static double eP2[1] = {0.0};
   static double eP3[2] = {-0.4503914,0.4503914};
-  static double eP4[3] = {-0.6612048,0.0,0.6612048};
+  //static double eP4[3] = {-0.7745967,0.0,0.7745967}; // gauss legendre
+  //static double eP4[3] = {-0.5,0.0,0.5}; //equi-distant
+  static double eP4[3] = {-0.6612048,0.0,0.6612048}; // babushka chen
   static double eP5[4] = {-0.7732854,-0.2863522,0.2863522,0.7732854};
   static double eP6[5] = {-0.8388042,-0.469821,0.0,
       0.469821,0.8388042};
