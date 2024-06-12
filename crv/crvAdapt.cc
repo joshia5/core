@@ -18,6 +18,15 @@
 #include <PCU.h>
 #include <pcu_util.h>
 
+//for printing crvvtk
+#include <reel.h>
+#include <sys/types.h> 
+#include <sys/stat.h> 
+#include <errno.h> 
+#include <algorithm>
+#include <gmi_null.h>
+#include <apfMDS.h>
+
 namespace crv {
 
 Adapt::Adapt(ma::Input* in)
@@ -41,6 +50,278 @@ static void clearTags(Adapt* a)
     m->end(it);
   }
   m->destroyTag(a->validityTag);
+}
+
+static void safe_mkdir(
+    const char* path)
+{
+  mode_t const mode = S_IRWXU|S_IRGRP|S_IXGRP|S_IROTH|S_IXOTH;
+  int err;
+  errno = 0;
+  err = mkdir(path, mode);
+  if (err != 0 && errno != EEXIST)
+  {
+    reel_fail("Err: could not create directory \"%s\"\n", path);
+  }
+}
+
+static void writeMeshes(
+    apf::Mesh2* m,
+    const char* prefix0,
+    const char* prefix1,
+    const char* prefix2,
+    const char* name,
+    int res)
+{
+  PCU_ALWAYS_ASSERT(prefix0);
+  PCU_ALWAYS_ASSERT(name);
+  if (!prefix1)
+    PCU_ALWAYS_ASSERT(!prefix2);
+
+  int order = m->getShape()->getOrder();
+  std::stringstream ss;
+  ss << prefix0 << "/";
+  if (prefix1) {
+    ss << prefix1;
+    safe_mkdir(ss.str().c_str());
+    ss << "/";
+  }
+  if (prefix2) {
+    ss << prefix2;
+    safe_mkdir(ss.str().c_str());
+    ss << "/";
+  }
+  ss << name;
+
+  if (order == 1) {
+    apf::writeVtkFiles(ss.str().c_str(), m);
+  }
+  else {
+    crv::writeCurvedVtuFiles(m, apf::Mesh::TRIANGLE, res, ss.str().c_str());
+    crv::writeCurvedWireFrame(m, res, ss.str().c_str());
+  }
+  ss << ".smb";
+  //m->writeNative(ss.str().c_str());
+}
+
+static void makeSurfMesh(
+    apf::Mesh2* m, const char* prefix, const int res)
+{
+  safe_mkdir(prefix);
+  writeMeshes(m, prefix, "mesh", NULL, "curved", res);
+
+  apf::Mesh2* cavityMeshCurved = 0;
+  apf::Mesh2* cavityMeshLinear = 0;
+
+  typedef std::vector<apf::MeshEntity*> Cavity;
+  typedef std::vector<apf::MeshEntity*>::iterator CavityIter;
+  PCU_ALWAYS_ASSERT(!cavityMeshLinear);
+  PCU_ALWAYS_ASSERT(!cavityMeshCurved);
+
+  int dim = m->getDimension();
+
+  Cavity icavity3;
+  Cavity icavity2;
+  Cavity icavity1;
+  Cavity icavity0;
+  icavity3.clear();
+  icavity2.clear();
+  icavity1.clear();
+  icavity0.clear();
+
+  std::vector<std::vector<int>> face_edge;
+  std::vector<std::vector<int>> edge_vert;
+
+
+  apf::MeshEntity* e;
+  apf::MeshIterator* it;
+  it = m->begin(2);
+  int n_rc_faces = 0;
+  while ( (e = m->iterate(it)) ) {
+    auto gent = m->toModel(e);
+    auto gdim = m->getModelType(gent);
+    auto gid = m->getModelTag(gent);
+    apf::Vector3 coords;
+    apf::MeshEntity* dv[3];
+    m->getDownward(e, 0, dv);
+    double r_min=1e16;
+    for (int v=0; v<3; ++v) {
+      m->getPoint(dv[v], 0, coords);
+      double r = std::sqrt((coords[0]*coords[0] + coords[1]*coords[1]));
+      if (r < r_min) r_min = r;
+    }
+    //if ((gdim == 2) && (gid == 3))
+    if ((gdim == 2) && (r_min > 0.8) && (std::abs(coords[0]) < 0.5) && (gid != 3) && (gid != 13))
+      icavity2.push_back(e);
+  }
+  m->end(it);
+
+  for (int i = 0; i < (int)icavity2.size(); i++) {
+    apf::Downward dents;
+    int nents = m->getDownward(icavity2[i], 1, dents);
+    for (int j = 0; j < nents; j++) {
+      if (std::find(icavity1.begin(), icavity1.end(), dents[j]) == icavity1.end())
+      	icavity1.push_back(dents[j]);
+    }
+    std::vector<int> conn;
+    for (int j = 0; j < nents; j++) {
+      CavityIter it = std::find(icavity1.begin(), icavity1.end(), dents[j]);
+      PCU_ALWAYS_ASSERT(it != icavity1.end());
+      conn.push_back(std::distance(icavity1.begin(), it));
+    }
+    PCU_ALWAYS_ASSERT((int)conn.size() == nents);
+    face_edge.push_back(conn);
+  }
+  PCU_ALWAYS_ASSERT(icavity2.size() == face_edge.size());
+
+  for (int i = 0; i < (int)icavity1.size(); i++) {
+    apf::Downward dents;
+    int nents = m->getDownward(icavity1[i], 0, dents);
+    for (int j = 0; j < nents; j++) {
+      if (std::find(icavity0.begin(), icavity0.end(), dents[j]) == icavity0.end())
+      	icavity0.push_back(dents[j]);
+    }
+    std::vector<int> conn;
+    for (int j = 0; j < nents; j++) {
+      CavityIter it = std::find(icavity0.begin(), icavity0.end(), dents[j]);
+      PCU_ALWAYS_ASSERT(it != icavity0.end());
+      conn.push_back(std::distance(icavity0.begin(), it));
+    }
+    PCU_ALWAYS_ASSERT((int)conn.size() == nents);
+    edge_vert.push_back(conn);
+  }
+  PCU_ALWAYS_ASSERT(icavity1.size() == edge_vert.size());
+
+  Cavity ocavity2linear;
+  Cavity ocavity1linear;
+  Cavity ocavity0linear;
+  Cavity ocavity2curved;
+  Cavity ocavity1curved;
+  Cavity ocavity0curved;
+  ocavity2linear.clear();
+  ocavity1linear.clear();
+  ocavity0linear.clear();
+  ocavity2curved.clear();
+  ocavity1curved.clear();
+  ocavity0curved.clear();
+
+  cavityMeshLinear = apf::makeEmptyMdsMesh(gmi_load(".null"), dim, false);
+  cavityMeshCurved = apf::makeEmptyMdsMesh(gmi_load(".null"), dim, false);
+
+  for (int i = 0; i < (int) icavity0.size(); i++) {
+    apf::MeshEntity* ent = icavity0[i];
+    apf::ModelEntity* c = m->toModel(ent);
+    apf::Vector3 coords;
+    apf::Vector3 params;
+    m->getPoint(ent, 0, coords);
+    m->getParam(ent, params);
+
+    apf::MeshEntity* newEnt = cavityMeshLinear->createVertex(c, coords, params);
+    ocavity0linear.push_back(newEnt);
+
+    apf::MeshEntity* newEntc = cavityMeshCurved->createVertex(c, coords, params);
+    ocavity0curved.push_back(newEntc);
+  }
+  PCU_ALWAYS_ASSERT(icavity0.size() == ocavity0linear.size());
+  PCU_ALWAYS_ASSERT(icavity0.size() == ocavity0curved.size());
+
+  for (int i = 0; i < (int) icavity1.size(); i++) {
+    apf::MeshEntity* ent = icavity1[i];
+    apf::ModelEntity* c = m->toModel(ent);
+    apf::MeshEntity* downv[2];
+    downv[0] = ocavity0linear[edge_vert[i][0]];
+    downv[1] = ocavity0linear[edge_vert[i][1]];
+    apf::MeshEntity* newEnt = cavityMeshLinear->createEntity(
+    	apf::Mesh::EDGE, c, downv);
+    ocavity1linear.push_back(newEnt);
+
+    downv[0] = ocavity0curved[edge_vert[i][0]];
+    downv[1] = ocavity0curved[edge_vert[i][1]];
+    apf::MeshEntity* newEntc = cavityMeshCurved->createEntity(
+    	apf::Mesh::EDGE, c, downv);
+    ocavity1curved.push_back(newEntc);
+  }
+  PCU_ALWAYS_ASSERT(icavity1.size() == ocavity1linear.size());
+  PCU_ALWAYS_ASSERT(icavity1.size() == ocavity1curved.size());
+
+  for (int i = 0; i < (int) icavity2.size(); i++) {
+    apf::MeshEntity* ent = icavity2[i];
+    apf::ModelEntity* c = m->toModel(ent);
+    apf::MeshEntity* downe[3];
+    downe[0] = ocavity1linear[face_edge[i][0]];
+    downe[1] = ocavity1linear[face_edge[i][1]];
+    downe[2] = ocavity1linear[face_edge[i][2]];
+    apf::MeshEntity* newEnt = cavityMeshLinear->createEntity(
+    	apf::Mesh::TRIANGLE, c, downe);
+    ocavity2linear.push_back(newEnt);
+
+    downe[0] = ocavity1curved[face_edge[i][0]];
+    downe[1] = ocavity1curved[face_edge[i][1]];
+    downe[2] = ocavity1curved[face_edge[i][2]];
+    apf::MeshEntity* newEntc = cavityMeshCurved->createEntity(
+    	apf::Mesh::TRIANGLE, c, downe);
+    ocavity2curved.push_back(newEntc);
+  }
+  PCU_ALWAYS_ASSERT(icavity2.size() == ocavity2linear.size());
+  PCU_ALWAYS_ASSERT(icavity2.size() == ocavity2curved.size());
+
+  cavityMeshLinear->acceptChanges();
+  apf::deriveMdsModel(cavityMeshLinear);
+
+  cavityMeshCurved->acceptChanges();
+  apf::deriveMdsModel(cavityMeshCurved);
+
+  cavityMeshCurved->changeShape(m->getShape(), true);
+  apf::FieldShape* fs = cavityMeshCurved->getShape();
+
+  int nnodes = fs->countNodesOn(apf::Mesh::TRIANGLE);
+  if (nnodes) {
+    for (int i = 0; i < (int)icavity2.size(); i++) {
+      apf::MeshEntity* fromEnt = icavity2[i];
+      apf::MeshEntity* toEnt   = ocavity2curved[i];
+      for (int j = 0; j < nnodes; j++) {
+	apf::Vector3 p;
+	m->getPoint(fromEnt, j, p);
+	cavityMeshCurved->setPoint(toEnt, j, p);
+      }
+    }
+  }
+
+  nnodes = fs->countNodesOn(apf::Mesh::EDGE);
+  if (nnodes) {
+    for (int i = 0; i < (int)icavity1.size(); i++) {
+      apf::MeshEntity* fromEnt = icavity1[i];
+      apf::MeshEntity* toEnt   = ocavity1curved[i];
+      for (int j = 0; j < nnodes; j++) {
+	apf::Vector3 p;
+	m->getPoint(fromEnt, j, p);
+	cavityMeshCurved->setPoint(toEnt, j, p);
+      }
+    }
+  }
+
+  cavityMeshCurved->acceptChanges();
+
+  char cavityFolderName[128];
+  char cavityFileNameLinear[128];
+  char cavityFileNameCurved[128];
+  char entityFileNameLinear[128];
+  char entityFileNameCurved[128];
+  sprintf(cavityFolderName, "%s_%05d", "triangle", 0);
+  sprintf(cavityFileNameLinear, "%s", "cavity_linear");
+  sprintf(cavityFileNameCurved, "%s", "cavity_curved");
+  sprintf(entityFileNameLinear, "%s", "entity_linear");
+  sprintf(entityFileNameCurved, "%s", "entity_curved");
+  writeMeshes(cavityMeshLinear, prefix, "cavities",
+      cavityFolderName, cavityFileNameLinear, res);
+  writeMeshes(cavityMeshCurved, prefix, "cavities",
+      cavityFolderName, cavityFileNameCurved, res);
+
+  cavityMeshLinear->destroyNative();
+  cavityMeshCurved->destroyNative();
+  apf::destroyMesh(cavityMeshLinear);
+  apf::destroyMesh(cavityMeshCurved);
+
 }
 
 static int getTags(Adapt* a, ma::Entity* e)
@@ -262,6 +543,9 @@ void adapt(ma::Input* in)
   ma::print("mesh adapted in %f seconds",t1-t0);
   apf::printStats(a->mesh);
   crv::clearTags(a);
+  
+//makeSurfMesh(a->mesh, "108kp2uniref_vis", 15);
+
   delete a;
   // cleanup input object and associated sizefield and solutiontransfer objects
   if (in->ownsSizeField)
