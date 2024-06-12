@@ -423,8 +423,8 @@ static void makeSurfMesh(
       double r = std::sqrt((coords[0]*coords[0] + coords[1]*coords[1]));
       if (r < r_min) r_min = r;
     }
-    if ((gdim == 2) && (gid == 3))
-    //if ((gdim == 2) && (r_min > 0.8) && (std::abs(coords[0]) < 0.5) && (gid != 3) && (gid != 13))
+    //if ((gdim == 2) && (gid == 3))
+    if ((gdim == 2) && (r_min > 0.8) && (std::abs(coords[0]) < 0.5) && (gid != 3) && (gid != 13))
       icavity2.push_back(e);
   }
   m->end(it);
@@ -600,7 +600,7 @@ static void makeSurfMesh(
 static void makeInvalidMesh(
     apf::Mesh2* m, const int res)
 {
-  std::string prefix_s = "invalid_tetp2";
+  std::string prefix_s = "invalid_tetp3";
   const char * prefix = prefix_s.c_str();
   safe_mkdir(prefix);
   //writeMeshes(m, prefix, "mesh", NULL, "curved", res);
@@ -792,8 +792,8 @@ static void makeInvalidMesh(
       //cavityMeshLinear->acceptChanges();
       //apf::deriveMdsModel(cavityMeshLinear);
 
-      //cavityMeshCurved->acceptChanges();
-      //apf::deriveMdsModel(cavityMeshCurved);
+      cavityMeshCurved->acceptChanges();
+      apf::deriveMdsModel(cavityMeshCurved);
 
       cavityMeshCurved->changeShape(m->getShape(), true);
       apf::FieldShape* fs = cavityMeshCurved->getShape();
@@ -827,7 +827,7 @@ static void makeInvalidMesh(
       }
 
       printf("9\n");
-      //cavityMeshCurved->acceptChanges();
+      cavityMeshCurved->acceptChanges();
 
       printf("10\n");
       //writeMeshes(cavityMeshLinear, prefix, "cavities",
@@ -845,7 +845,7 @@ static void makeInvalidMesh(
     }
   }
   m->end(it2);
-  PCU_Barrier();
+  //PCU_Barrier();
 
 }
 
@@ -955,7 +955,7 @@ void snapToInterpolate(apf::Mesh2* m, apf::MeshEntity* e, bool isNew)
   if (type == 2) {
     if (m->getModelType(m->toModel(e)) != 2) {
       printf("g id %d, class dim\n",m->getModelTag(m->toModel(e)),m->getModelType(m->toModel(e)));
-      fail("error: cannot interior face\n");
+      fail("error: cannot snap interior face\n");
     }
   }
   for(int i = 0; i < non; ++i){
@@ -974,6 +974,59 @@ void snapToInterpolate(apf::Mesh2* m, apf::MeshEntity* e, bool isNew)
     if (!m->isOnModel(g, pt0, lengthScale))
       m->setPoint(e,i,pt);
   }
+}
+
+static void placeFaceCents(apf::Mesh2* m) {
+  apf::MeshIterator* it2 = m->begin(m->getDimension());
+  apf::MeshEntity* e2;
+  long n = 0;
+  while ((e2 = m->iterate(it2))) {
+    if (!isSimplex(m->getType(e2)))
+      continue;
+    double v = measure(m,e2);
+    auto ce = getLinearCentroid(m,e2);
+    if ((std::abs(ce[0]-0.779547)<.00001) && (std::abs(ce[1]-0.340564)<.00001) && (std::abs(ce[2]-0.103453)<.00001)){
+    //if (v < 0)
+      std::stringstream ss;
+      ss << "printing invalid element, volume " << v
+	<< " at " << getLinearCentroid(m, e2) << '\n';
+      std::string s = ss.str();
+      lion_oprint(1, "%s", s.c_str());
+      fflush(stdout);
+      ++n;
+
+      int dim = m->getDimension();
+
+      printf("0\n");
+
+      apf::MeshEntity* e;
+      apf::MeshIterator* it;
+      apf::MeshEntity* f[4];
+      m->getDownward(e2,2,f);
+      int type = m->getType(e);
+      for (int i=0; i<4; ++i) {
+	e = f[i];
+	auto gent = m->toModel(e);
+	auto gid = m->getModelTag(gent);
+	auto gdim = m->getModelType(gent);
+	printf("face %d classified on Gent %d Gdim %d\n", i, gid, gdim);
+	// set centroid as face point
+	if ((gid == 107) && (gdim == 3)) {
+	  auto f_cent = getLinearCentroid(m,e);
+	  apf::FieldShape * fs = m->getShape();
+	  int non = fs->countNodesOn(type);
+	  if (non == 1) {//p=3
+	    m->setPoint(e,non-1,f_cent);
+	  }
+	}
+      }
+      printf("1\n");
+
+    }
+  }
+  m->end(it2);
+  PCU_Barrier();
+
 }
 
 void MeshCurver::synchronize()
@@ -1034,8 +1087,10 @@ bool BezierCurver::run()
   }
 
   if (m_mesh->canSnap()){
-    for(int d = 1; d <= 2; ++d)
+    for(int d = 1; d <= 2; ++d) {
       snapToInterpolate(d);
+    }
+    //crv::placeFaceCents(m_mesh);
     synchronize();
   }
 
@@ -1052,8 +1107,8 @@ bool BezierCurver::run()
     crv::computeMeanDist(m_mesh);
   }
 
-  makeSurfMesh(m_mesh, "SurfMesh_outerfluxsurf", 15);
-  makeInvalidMesh(m_mesh, 15);
+  //makeSurfMesh(m_mesh, "SurfMesh_fscr", 15);
+  //makeInvalidMesh(m_mesh, 15);
   synchronize();
   PCU_Barrier();
 
