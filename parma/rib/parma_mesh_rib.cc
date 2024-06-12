@@ -69,10 +69,12 @@ class RibSplitter : public apf::Splitter
       PCU_ALWAYS_ASSERT((1 << depth) == multiple);
       apf::Migration* plan = splitMesh(mesh, weights, depth);
       if (sync) {
-        int offset = mesh->getId() * multiple;
+        int offset = mesh->getId() * multiple; 
         for (int i = 0; i < plan->count(); ++i) {
           apf::MeshEntity* e = plan->get(i);
           int p = plan->sending(e);
+          //p += PCU_Proc_Self() * multiple; // same as zsp
+          //plan->send(e, p); // same as zsp
           plan->send(e, p + offset);
         }
         double t1 = PCU_Time();

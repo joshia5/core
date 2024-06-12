@@ -1010,10 +1010,14 @@ Mesh2* repeatMdsMesh(Mesh2* m, gmi_model* g, Migration* plan,
     int factor)
 {
   m = expandMdsMesh(m, g, PCU_Comm_Peers() / factor);
+  if (!PCU_Comm_Self())
+    printf("expanded mds mesh\n");
   double t0 = PCU_Time();
   if (PCU_Comm_Self() % factor != 0)
     plan = new apf::Migration(m, m->findTag("apf_migrate"));
   m->migrate(plan);
+  if (!PCU_Comm_Self())
+    printf("migrated mds mesh\n");
   double t1 = PCU_Time();
   if (!PCU_Comm_Self())
     lion_oprint(1,"mesh migrated from %d to %d in %f seconds\n",
