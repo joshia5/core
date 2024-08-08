@@ -24,10 +24,14 @@
 #include <string.h>
 #include <stdio.h>
 
+#include <crv.h>
+
+#include <apfOmega_h.h>
+#include <Omega_h_library.hpp>
+#include <Omega_h_mesh.hpp>
+#include <Omega_h_file.hpp>
+
 using namespace std;
-
-
-
 
 apf::Field* convert_my_tag(apf::Mesh* m, apf::MeshTag* t) {
   apf::MeshEntity* vtx;
@@ -480,21 +484,36 @@ int main(int argc, char** argv)
     fprintf(stderr, "created the apf_sim mesh in %f seconds\n", t2-t1);
   if (should_attach_order) attachOrder(simApfMesh);
 
-  apf::Mesh2* mesh = apf::createMdsMesh(mdl, simApfMesh);
+  apf::Mesh2* a_mesh = apf::createMdsMesh(mdl, simApfMesh);
   double t3 = PCU_Time();
   if(!PCU_Comm_Self())
     fprintf(stderr, "created the apf_mds mesh in %f seconds\n", t3-t2);
 
-  apf::printStats(mesh);
+  apf::printStats(a_mesh);
   apf::destroyMesh(simApfMesh);
   M_release(sim_mesh);
-  fixMatches(mesh);
-  if (should_fix_pyramids) fixPyramids(mesh);
-  mesh->verify();
-  mesh->writeNative(smb_path);
+  fixMatches(a_mesh);
+  if (should_fix_pyramids) fixPyramids(a_mesh);
+  a_mesh->verify();
+  //a_mesh->writeNative(smb_path);
 
-  mesh->destroyNative();
-  apf::destroyMesh(mesh);
+
+  int order = 3; 
+  //int order = atoi(argv[]); 
+  crv::BezierCurver bc(a_mesh,order,0);
+  bc.run();
+
+
+  {
+    auto o_lib = Omega_h::Library(&argc, &argv);
+    Omega_h::Mesh o_mesh(&o_lib);
+    apf::to_omega_h(&o_mesh, a_mesh);
+    //Omega_h::binary::write(argv[3], &om);
+  }
+
+
+  a_mesh->destroyNative();
+  apf::destroyMesh(a_mesh);
 
   Progress_delete(progress);
   gmi_sim_stop();
