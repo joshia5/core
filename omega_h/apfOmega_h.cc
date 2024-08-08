@@ -149,6 +149,8 @@ static void field_to_osh(osh::Mesh* om, apf::Field* f) {
   } else components_to_osh(f, it, data);
   am->end(it);
   om->add_tag(ent_dim, name, nc, osh::Reals(data.write()));
+
+  /* mAKE separate function to transfer bezier points*/
 }
 
 static void field_from_osh(apf::Field* f, osh::Tag<osh::Real> const* tag,
