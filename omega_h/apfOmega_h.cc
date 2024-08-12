@@ -9,8 +9,9 @@
 #include <apfShape.h>
 #include <PCU.h>
 #include <apf.h>
-#include <crv.h>
 #include <lionPrint.h>
+
+#include <crvBezier.h>
 
 #include <Omega_h_array.hpp>
 #include <Omega_h_mesh.hpp>

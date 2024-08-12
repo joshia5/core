@@ -30,7 +30,7 @@ target_include_directories(apf_omega_h INTERFACE
     )
 
 # Link this package to these libraries
-target_link_libraries(apf_omega_h PUBLIC apf mds Omega_h::omega_h)
+target_link_libraries(apf_omega_h PUBLIC apf mds Omega_h::omega_h crv)
 
 scorec_export_library(apf_omega_h)
 
