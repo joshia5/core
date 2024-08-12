@@ -9,6 +9,7 @@
 #include <apfShape.h>
 #include <PCU.h>
 #include <apf.h>
+#include <crv.h>
 #include <lionPrint.h>
 
 #include <Omega_h_array.hpp>
@@ -124,7 +125,13 @@ static void field_to_osh(osh::Mesh* om, apf::Field* f) {
       apf::getShape(f) == apf::getIPFitShape(dim, 1)
       ) {
     ent_dim = dim;
-  } else {
+  } 
+  else if (apf::getShape(f) == crv::getBezier(3)) {
+    //ent_dim = dim;
+    lion_oprint(1,"copying order 3 bezier field to Omega_h\n");
+    return;
+  }
+  else {
     if (!PCU_Comm_Self()) {
       lion_oprint(1,"not copying field %s to Omega_h\n",name.c_str());
     }
@@ -150,7 +157,10 @@ static void field_to_osh(osh::Mesh* om, apf::Field* f) {
   am->end(it);
   om->add_tag(ent_dim, name, nc, osh::Reals(data.write()));
 
-  /* mAKE separate function to transfer bezier points*/
+  /* Make separate function to transfer bezier points
+   * since its coordinate field in pumi, might need to
+   * transfer interpolation points
+   */
 }
 
 static void field_from_osh(apf::Field* f, osh::Tag<osh::Real> const* tag,
