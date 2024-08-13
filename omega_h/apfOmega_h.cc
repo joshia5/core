@@ -129,25 +129,85 @@ static void field_to_osh(osh::Mesh* om, apf::Field* f) {
   } 
   else if (apf::getShape(f) == crv::getBezier(3)) {
     //ent_dim = dim;
-    lion_oprint(1,"copying order 3 bezier field name '%s' to Omega_h\n",
-        name.c_str());
 
-    //first do vertex coordinates
-    ent_dim = 0;
-    apf::MeshEntity* e;
-    apf::MeshIterator* it = am->begin(ent_dim);
-    auto o_coords = osh::HostWrite<osh::Real>(om->nents(ent_dim)*dim);
-    int i = 0;
-    while ((e = am->iterate(it))) {
-      apf::Vector3 coord;
-      am->getPoint(e,0,coord);
-      for (int j = 0; j < dim; ++j) {
-        o_coords[i * dim + j] = coord[j];
+    if (!om->has_tag(0, "coordinates")) {
+      lion_oprint(1,"copying '%s' to P3 Omega_h mesh\n", name.c_str());
+      om->set_curved(1);
+      om->set_max_order(3);
+      //first do vertex coordinates
+      ent_dim = 0;
+      apf::MeshEntity* e;
+      apf::MeshIterator* it = am->begin(ent_dim);
+      auto o_coords = osh::HostWrite<osh::Real>(om->nents(ent_dim)*dim);
+      int i = 0;
+      while ((e = am->iterate(it))) {
+        apf::Vector3 coord;
+        am->getPoint(e,0,coord);
+        for (int j = 0; j < dim; ++j) {
+          o_coords[i * dim + j] = coord[j];
+        }
+        ++i;
       }
-      ++i;
+      am->end(it);
+      om->add_tag(ent_dim, name, dim, osh::Reals(o_coords.write()));
     }
-    am->end(it);
-    om->add_tag(ent_dim, name, dim, osh::Reals(o_coords.write()));
+
+    //working with faces cause 1 bezier pt for cubic
+    //NOTE** for bezier pts, the connectivity for omega mesh should have been
+    //already built, try adding another flag to the coords_to_osh first
+    //do only coords and after all conn has been built, do the beziers
+    if ((om->has_tag(0, "coordinates")) && (om->has_ents(dim))) {
+      lion_oprint(1,"copying P3 bezier field to Omega_h\n");
+      om->add_tags_for_ctrlPts();
+      om->add_tag(0, "bezier_pts", dim, om->coords());
+
+      ent_dim = 1;
+      apf::MeshEntity* e;
+      apf::MeshIterator* it = am->begin(ent_dim);
+      const int n_pts = om->n_internal_ctrlPts(1);
+      //const int n_facePts = f->countNodesOn(apf::Mesh::simplexTypes[m]);//is giving compilation error
+      auto e_ctrlPts = osh::HostWrite<osh::Real>(
+          om->nents(ent_dim)*n_pts*dim);
+      int i = 0;
+      while ((e = am->iterate(it))) {
+        //for multiple pts for edge the below logic will be in a loop
+        for (int np = 0; np < n_pts; ++np) {
+          apf::Vector3 pt;
+          am->getPoint(e,np,pt);
+          for (int j = 0; j < dim; ++j) {
+            e_ctrlPts[i*n_pts*dim + np*dim + j] = pt[j];
+          }
+        }
+        ++i;
+      }
+      am->end(it);
+      lion_oprint(1,"ok1\n");
+      om->set_tag_for_ctrlPts(ent_dim, osh::Reals(e_ctrlPts.write()));
+      lion_oprint(1,"ok2\n");
+
+      ent_dim = 2;
+      //apf::MeshEntity* e;
+      it = am->begin(ent_dim);
+      //apf::MeshIterator* it = am->begin(ent_dim);
+      const int n_facePts = om->n_internal_ctrlPts(2);
+      //const int n_facePts = f->countNodesOn(apf::Mesh::simplexTypes[m]);//is giving compilation error
+      auto f_ctrlPts = osh::HostWrite<osh::Real>(
+          om->nents(ent_dim)*n_facePts*dim);
+      i = 0;
+      while ((e = am->iterate(it))) {
+        apf::Vector3 f_pt;
+        //for multiple pts for face the below logic will be in a loop
+        am->getPoint(e,0,f_pt);
+        for (int j = 0; j < dim; ++j) {
+          f_ctrlPts[i * dim + j] = f_pt[j];
+        }
+        ++i;
+      }
+      am->end(it);
+      lion_oprint(1,"ok3\n");
+      om->set_tag_for_ctrlPts(ent_dim, osh::Reals(f_ctrlPts.write()));
+      lion_oprint(1,"ok4\n");
+    }
 
     return;
   }
@@ -253,6 +313,10 @@ static void coords_from_osh(apf::Mesh* am, osh::Mesh* om) {
       om->get_tag<osh::Real>(0, "coordinates"), 0);
 }
 
+static void curved_to_osh(osh::Mesh* om, apf::Mesh* am) {
+  field_to_osh(om, am->getCoordinateField());
+}
+
 static void class_to_osh(osh::Mesh* mesh_osh, apf::Mesh* mesh_apf, int dim) {
   auto nents = osh::LO(mesh_apf->count(dim));
   auto host_class_id = osh::HostWrite<osh::LO>(nents);
@@ -346,6 +410,7 @@ void to_omega_h(osh::Mesh* om, apf::Mesh* am) {
   }
   apf::destroyNumbering(vert_nums);
   fields_to_osh(om, am);
+  if (om->is_curved()) curved_to_osh(om, am);
 }
 
 static void
