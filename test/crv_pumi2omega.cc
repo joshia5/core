@@ -508,7 +508,12 @@ int main(int argc, char** argv)
     auto o_lib = Omega_h::Library(&argc, &argv);
     Omega_h::Mesh o_mesh(&o_lib);
     apf::to_omega_h(&o_mesh, a_mesh);
-    //Omega_h::binary::write(argv[3], &om);
+    
+    Omega_h::vtk::FullWriter writer;
+    writer = Omega_h::vtk::FullWriter(
+        "/lore/joshia5/Meshes/curved/annulus3d-24_crvsmb2osh.vtk",
+        &o_mesh);
+    writer.write();
   }
 
 

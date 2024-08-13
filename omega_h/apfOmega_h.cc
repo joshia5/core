@@ -129,7 +129,26 @@ static void field_to_osh(osh::Mesh* om, apf::Field* f) {
   } 
   else if (apf::getShape(f) == crv::getBezier(3)) {
     //ent_dim = dim;
-    lion_oprint(1,"copying order 3 bezier field to Omega_h\n");
+    lion_oprint(1,"copying order 3 bezier field name '%s' to Omega_h\n",
+        name.c_str());
+
+    //first do vertex coordinates
+    ent_dim = 0;
+    apf::MeshEntity* e;
+    apf::MeshIterator* it = am->begin(ent_dim);
+    auto o_coords = osh::HostWrite<osh::Real>(om->nents(ent_dim)*dim);
+    int i = 0;
+    while ((e = am->iterate(it))) {
+      apf::Vector3 coord;
+      am->getPoint(e,0,coord);
+      for (int j = 0; j < dim; ++j) {
+        o_coords[i * dim + j] = coord[j];
+      }
+      ++i;
+    }
+    am->end(it);
+    om->add_tag(ent_dim, name, dim, osh::Reals(o_coords.write()));
+
     return;
   }
   else {
