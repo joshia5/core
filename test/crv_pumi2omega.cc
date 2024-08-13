@@ -30,6 +30,7 @@
 #include <Omega_h_library.hpp>
 #include <Omega_h_mesh.hpp>
 #include <Omega_h_file.hpp>
+#include <Omega_h_build.hpp>
 
 using namespace std;
 
@@ -508,12 +509,25 @@ int main(int argc, char** argv)
     auto o_lib = Omega_h::Library(&argc, &argv);
     Omega_h::Mesh o_mesh(&o_lib);
     apf::to_omega_h(&o_mesh, a_mesh);
-    
+
     Omega_h::vtk::FullWriter writer;
     writer = Omega_h::vtk::FullWriter(
         "/lore/joshia5/Meshes/curved/annulus3d-24_crvsmb2osh.vtk",
         &o_mesh);
     writer.write();
+
+    auto wireframe_mesh = Omega_h::Mesh(&o_lib);
+    wireframe_mesh.set_comm(o_mesh.comm());
+    Omega_h::build_cubic_wireframe_3d(&o_mesh, &wireframe_mesh, 10);
+    std::string vtuPath =
+      "/lore/joshia5/Meshes/curved/annulus3d-24-p2o_wire.vtu";
+    Omega_h::vtk::write_simplex_connectivity(vtuPath.c_str(), &wireframe_mesh, 1);
+    auto cubic_curveVtk_mesh = Omega_h::Mesh(&o_lib);
+    cubic_curveVtk_mesh.set_comm(o_mesh.comm());
+    Omega_h::build_cubic_curveVtk_3d(&o_mesh, &cubic_curveVtk_mesh, 10);
+    vtuPath = "/lore/joshia5/Meshes/curved/annulus3d-24-p2o.vtu";
+    Omega_h::vtk::write_simplex_connectivity(vtuPath.c_str(), &cubic_curveVtk_mesh, 2);
+
   }
 
 
