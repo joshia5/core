@@ -128,7 +128,6 @@ static void field_to_osh(osh::Mesh* om, apf::Field* f) {
     ent_dim = dim;
   } 
   else if (apf::getShape(f) == crv::getBezier(3)) {
-    //ent_dim = dim;
 
     if (!om->has_tag(0, "coordinates")) {
       lion_oprint(1,"copying '%s' to P3 Omega_h mesh\n", name.c_str());
@@ -152,10 +151,6 @@ static void field_to_osh(osh::Mesh* om, apf::Field* f) {
       om->add_tag(ent_dim, name, dim, osh::Reals(o_coords.write()));
     }
 
-    //working with faces cause 1 bezier pt for cubic
-    //NOTE** for bezier pts, the connectivity for omega mesh should have been
-    //already built, try adding another flag to the coords_to_osh first
-    //do only coords and after all conn has been built, do the beziers
     if ((om->has_tag(0, "coordinates")) && (om->has_ents(dim))) {
       lion_oprint(1,"copying P3 bezier field to Omega_h\n");
       om->add_tags_for_ctrlPts();
@@ -181,9 +176,7 @@ static void field_to_osh(osh::Mesh* om, apf::Field* f) {
         ++i;
       }
       am->end(it);
-      lion_oprint(1,"ok1\n");
       om->set_tag_for_ctrlPts(ent_dim, osh::Reals(e_ctrlPts.write()));
-      lion_oprint(1,"ok2\n");
 
       ent_dim = 2;
       //apf::MeshEntity* e;
@@ -204,9 +197,7 @@ static void field_to_osh(osh::Mesh* om, apf::Field* f) {
         ++i;
       }
       am->end(it);
-      lion_oprint(1,"ok3\n");
       om->set_tag_for_ctrlPts(ent_dim, osh::Reals(f_ctrlPts.write()));
-      lion_oprint(1,"ok4\n");
     }
 
     return;
