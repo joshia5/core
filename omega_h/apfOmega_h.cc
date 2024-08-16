@@ -308,6 +308,11 @@ static void curved_to_osh(osh::Mesh* om, apf::Mesh* am) {
   field_to_osh(om, am->getCoordinateField());
 }
 
+static void curved_from_osh(osh::Mesh* om, apf::Mesh* am) {
+  //field_from_osh(am->getCoordinateField(),
+      //om->get_tag<osh::Real>(0, "coordinates"), 0);
+}
+
 static void class_to_osh(osh::Mesh* mesh_osh, apf::Mesh* mesh_apf, int dim) {
   auto nents = osh::LO(mesh_apf->count(dim));
   auto host_class_id = osh::HostWrite<osh::LO>(nents);
@@ -534,7 +539,7 @@ void from_omega_h(apf::Mesh2* am, osh::Mesh* om)
   ents[0] = verts_from_osh(am, om);
   for (int d = 1; d <= om->dim(); ++d)
     ents[d] = ents_from_osh(am, om, ents[0], d);
-  coords_from_osh(am, om);
+  if (!om->is_curved) coords_from_osh(am, om);
   for (int d = 0; d <= om->dim(); ++d) {
     class_from_osh(am, om, ents[d], d);
     owners_from_osh(am, om, ents[d], d);
@@ -542,6 +547,7 @@ void from_omega_h(apf::Mesh2* am, osh::Mesh* om)
   }
   am->acceptChanges();
   fields_from_osh(am, om);
+  if (om->is_curved) curved_from_osh(om, am);
 }
 
 };
