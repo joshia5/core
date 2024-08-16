@@ -539,7 +539,7 @@ void from_omega_h(apf::Mesh2* am, osh::Mesh* om)
   ents[0] = verts_from_osh(am, om);
   for (int d = 1; d <= om->dim(); ++d)
     ents[d] = ents_from_osh(am, om, ents[0], d);
-  if (!om->is_curved) coords_from_osh(am, om);
+  if (!om->is_curved()) coords_from_osh(am, om);
   for (int d = 0; d <= om->dim(); ++d) {
     class_from_osh(am, om, ents[d], d);
     owners_from_osh(am, om, ents[d], d);
@@ -547,7 +547,7 @@ void from_omega_h(apf::Mesh2* am, osh::Mesh* om)
   }
   am->acceptChanges();
   fields_from_osh(am, om);
-  if (om->is_curved) curved_from_osh(om, am);
+  if (om->is_curved()) curved_from_osh(om, am);
 }
 
 };
