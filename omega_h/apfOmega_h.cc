@@ -309,6 +309,30 @@ static void curved_to_osh(osh::Mesh* om, apf::Mesh* am) {
 }
 
 static void curved_from_osh(osh::Mesh* om, apf::Mesh* am) {
+
+  auto dim = am->getDimension();
+  auto nc = tag->ncomps();
+  auto name = tag->name();
+  int value_type;
+  if (nc == dim) value_type = apf::VECTOR;
+  else if (nc == dim * dim) value_type = apf::MATRIX;
+ 
+  apf::FieldShape* shape;
+  shape = apf::getBezier(3);
+  
+  auto f = apf::createGeneralField(am, name.c_str(), value_type, nc,
+      shape);
+  
+  auto data = osh::HostRead<osh::Real>(tag->array());
+  apf::MeshIterator* it = am->begin(ent_dim);
+  if (value_type == apf::VECTOR) {
+    vectors_from_osh(f, it, data);
+  } if (value_type == apf::MATRIX) {
+    if (dim == 2) matrices_from_osh<2>(f, it, data);
+    if (dim == 3) matrices_from_osh<3>(f, it, data);
+  } else components_from_osh(f, it, data);
+  am->end(it);
+
   //field_from_osh(am->getCoordinateField(),
       //om->get_tag<osh::Real>(0, "coordinates"), 0);
 }
