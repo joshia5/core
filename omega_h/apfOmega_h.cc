@@ -10,6 +10,8 @@
 #include <PCU.h>
 #include <apf.h>
 #include <lionPrint.h>
+#include <apfTagData.h>
+#include <apfVectorField.h>
 
 #include <crvBezier.h>
 
@@ -319,7 +321,7 @@ static void curved_from_osh(osh::Mesh* om, apf::Mesh* am) {
   shape = crv::getBezier(3);
  
   VectorField* newCoordinateField = new VectorField();
-  newCoordinateField->init("coordinates", am, shape, new TagDataOf<double>());
+  newCoordinateField->init("coordinates", am, shape, new apf::TagDataOf<double>());
 
   //auto f = apf::createGeneralField(am, name.c_str(), value_type, nc,
     //  shape);
@@ -333,11 +335,11 @@ static void curved_from_osh(osh::Mesh* om, apf::Mesh* am) {
     while ((v = am->iterate(it))) {
       apf::Vector3 x(0,0,0);
       for (int j = 0; j < dim; ++j) x[j] = data[i*n_pts*dim + j];
-      am->setVector(newCoordinateField, v, 0, x);
+      apf::setVector(newCoordinateField, v, 0, x);
       //am->setPoint(v, 0, x);
       if (ent_dim == 1) {
         for (int j = 0; j < dim; ++j) x[j] = data[i*n_pts*dim + dim + j];
-        am->setVector(newCoordinateField, v, 1, x);
+        apf::setVector(newCoordinateField, v, 1, x);
         //am->setPoint(v, 1, x);
       }
       ++i;
