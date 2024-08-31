@@ -311,30 +311,39 @@ static void curved_to_osh(osh::Mesh* om, apf::Mesh* am) {
 static void curved_from_osh(osh::Mesh* om, apf::Mesh* am) {
 
   auto dim = am->getDimension();
-  auto nc = tag->ncomps();
-  auto name = tag->name();
   int value_type;
-  if (nc == dim) value_type = apf::VECTOR;
-  else if (nc == dim * dim) value_type = apf::MATRIX;
+  //if (nc == dim) value_type = apf::VECTOR;
+  //else if (nc == dim * dim) value_type = apf::MATRIX;
  
   apf::FieldShape* shape;
-  shape = apf::getBezier(3);
-  
-  auto f = apf::createGeneralField(am, name.c_str(), value_type, nc,
-      shape);
-  
-  auto data = osh::HostRead<osh::Real>(tag->array());
-  apf::MeshIterator* it = am->begin(ent_dim);
-  if (value_type == apf::VECTOR) {
-    vectors_from_osh(f, it, data);
-  } if (value_type == apf::MATRIX) {
-    if (dim == 2) matrices_from_osh<2>(f, it, data);
-    if (dim == 3) matrices_from_osh<3>(f, it, data);
-  } else components_from_osh(f, it, data);
-  am->end(it);
+  shape = crv::getBezier(3);
+ 
+  VectorField* newCoordinateField = new VectorField();
+  newCoordinateField->init("coordinates", am, shape, new TagDataOf<double>());
 
-  //field_from_osh(am->getCoordinateField(),
-      //om->get_tag<osh::Real>(0, "coordinates"), 0);
+  //auto f = apf::createGeneralField(am, name.c_str(), value_type, nc,
+    //  shape);
+
+  for (int ent_dim = 0; ent_dim <= dim; ++ent_dim) {
+    const auto data = osh::HostRead<osh::Real>(om->get_ctrlPts(ent_dim));
+    apf::MeshIterator* it = am->begin(ent_dim);
+    apf::MeshEntity* v;
+    int i = 0;
+    const int n_pts = om->n_internal_ctrlPts(ent_dim);
+    while ((v = am->iterate(it))) {
+      apf::Vector3 x(0,0,0);
+      for (int j = 0; j < dim; ++j) x[j] = data[i*n_pts*dim + j];
+      am->setVector(newCoordinateField, v, 0, x);
+      //am->setPoint(v, 0, x);
+      if (ent_dim == 1) {
+        for (int j = 0; j < dim; ++j) x[j] = data[i*n_pts*dim + dim + j];
+        am->setVector(newCoordinateField, v, 1, x);
+        //am->setPoint(v, 1, x);
+      }
+      ++i;
+    }
+    am->end(it);
+  }
 }
 
 static void class_to_osh(osh::Mesh* mesh_osh, apf::Mesh* mesh_apf, int dim) {
@@ -563,7 +572,9 @@ void from_omega_h(apf::Mesh2* am, osh::Mesh* om)
   ents[0] = verts_from_osh(am, om);
   for (int d = 1; d <= om->dim(); ++d)
     ents[d] = ents_from_osh(am, om, ents[0], d);
+
   if (!om->is_curved()) coords_from_osh(am, om);
+
   for (int d = 0; d <= om->dim(); ++d) {
     class_from_osh(am, om, ents[d], d);
     owners_from_osh(am, om, ents[d], d);
@@ -571,6 +582,7 @@ void from_omega_h(apf::Mesh2* am, osh::Mesh* om)
   }
   am->acceptChanges();
   fields_from_osh(am, om);
+
   if (om->is_curved()) curved_from_osh(om, am);
 }
 
