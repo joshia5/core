@@ -482,7 +482,10 @@ ents_from_osh(
   apf::Mesh::Type t = apf::Mesh::simplexTypes[ent_dim];
   int nverts_per_ent = ent_dim + 1;
   for (int i = 0; i < om->nents(ent_dim); ++i) {
+    printf("i %d ok1.1 classdim %d classid %d \n", i, class_dim[i],
+        class_id[i]);
     auto ge = am->findModelEntity(class_dim[i], class_id[i]);
+    printf("i %d ok1.2\n", i);
     apf::Downward ev;
     for (int j = 0; j < nverts_per_ent; ++j)
       ev[j] = verts[ev2v[i * nverts_per_ent + j]];
@@ -572,8 +575,12 @@ void from_omega_h(apf::Mesh2* am, osh::Mesh* om)
 {
   std::vector<apf::MeshEntity*> ents[4];
   ents[0] = verts_from_osh(am, om);
-  for (int d = 1; d <= om->dim(); ++d)
+  printf("ok1\n");
+  for (int d = 1; d <= om->dim(); ++d) {
+    printf("d %d\n", d);
     ents[d] = ents_from_osh(am, om, ents[0], d);
+  }
+  printf("ok2\n");
 
   if (!om->is_curved()) coords_from_osh(am, om);
 

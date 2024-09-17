@@ -505,7 +505,6 @@ int main(int argc, char** argv)
   bc.run();
 
 
-  {
     auto o_lib = Omega_h::Library(&argc, &argv);
     Omega_h::Mesh o_mesh(&o_lib);
     apf::to_omega_h(&o_mesh, a_mesh);
@@ -528,11 +527,18 @@ int main(int argc, char** argv)
     vtuPath = "/lore/joshia5/Meshes/curved/annulus3d-24-p2o.vtu";
     Omega_h::vtk::write_simplex_connectivity(vtuPath.c_str(), &cubic_curveVtk_mesh, 2);
 
+    a_mesh->destroyNative();
+    apf::destroyMesh(a_mesh);
+
+    apf::Mesh2* am2 = apf::makeEmptyMdsMesh(mdl, o_mesh.dim(), false);
+    printf("ok0\n");
+    apf::from_omega_h(am2, &o_mesh);
+    //am2->writeNative(argv[3]);
+    am2->destroyNative();
+    apf::destroyMesh(am2);
+
+  {
   }
-
-
-  a_mesh->destroyNative();
-  apf::destroyMesh(a_mesh);
 
   Progress_delete(progress);
   gmi_sim_stop();

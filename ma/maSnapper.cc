@@ -312,6 +312,7 @@ void FirstProblemPlane::getCandidateEdges(std::vector<Entity*> &edges)
 
 bool FirstProblemPlane::find()
 {
+  printf("in snapping find\n");
   Mesh* mesh = adapter->mesh;
   std::vector<double> dists;
   double minDist = 1.0e6;

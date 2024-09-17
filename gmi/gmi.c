@@ -71,7 +71,9 @@ int gmi_tag(struct gmi_model* m, struct gmi_ent* e)
 
 struct gmi_ent* gmi_find(struct gmi_model* m, int dim, int tag)
 {
+  printf("calling ops find\n");
   return m->ops->find(m, dim, tag);
+  printf("exiting ops find\n");
 }
 
 // one-level adjacency only

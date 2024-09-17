@@ -168,6 +168,7 @@ int Mesh::getModelTag(ModelEntity* e)
 
 ModelEntity* Mesh::findModelEntity(int type, int tag)
 {
+  printf("calling gmi find\n");
   return (ModelEntity*)gmi_find(getModel(), type, tag);
 }
 

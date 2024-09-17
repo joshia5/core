@@ -117,7 +117,9 @@ static int get_tag(gmi_model*, gmi_ent* e)
 
 static gmi_ent* find(gmi_model* m, int dim, int tag)
 {
+  printf("creating simmodel instance\n");
   sim_model* mm = (sim_model*)m;
+  printf("created simmodel instance\n");
   return (gmi_ent*)GM_entityByTag(mm->sim, dim, tag);
 }
 
