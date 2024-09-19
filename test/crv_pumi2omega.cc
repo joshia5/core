@@ -101,13 +101,7 @@ void getConfig(int argc, char** argv) {
   };
 
   const char* usage=""
-    "[options] <model file> <simmetrix mesh> <scorec mesh>\n"
-    "options:\n"
-    "  --no-pyramid-fix                Disable quad-connected pyramid tetrahedronization\n"
-    "  --attach-order                  Attach the Simmetrix element order as a Numbering\n"
-    "  --enable-log                    Enable Simmetrix logging\n"
-    "  --model-face-root=/path/to/file ASCII input file with one integer per line listing the face ids that are the roots of mesh extrusions from SimModeler\n"
-    "  --native-model=/path/to/model   Load the native Parasolid or ACIS model that the GeomSim model uses\n";
+    "--native-model=/path/to/model <model file> <simmetrix mesh> <scorec mesh>\n";
 
   int option_index = 0;
   while(1) {
