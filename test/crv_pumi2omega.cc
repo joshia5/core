@@ -31,6 +31,7 @@
 #include <Omega_h_mesh.hpp>
 #include <Omega_h_file.hpp>
 #include <Omega_h_build.hpp>
+#include <Omega_h_adapt.hpp>
 
 using namespace std;
 
@@ -49,31 +50,8 @@ apf::Field* convert_my_tag(apf::Mesh* m, apf::MeshTag* t) {
   return f;
 }
 
-static void attachOrder(apf::Mesh* m)
-{
+static void attachOrder(apf::Mesh* m) {
   apf::numberOverlapDimension(m, "sim_order", m->getDimension());
-}
-
-static void fixMatches(apf::Mesh2* m)
-{
-  if (m->hasMatching()) {
-    if (apf::alignMdsMatches(m))
-      printf("fixed misaligned matches\n");
-    else
-      printf("matches were aligned\n");
-    PCU_ALWAYS_ASSERT( ! apf::alignMdsMatches(m));
-  }
-}
-
-static void fixPyramids(apf::Mesh2* m)
-{
-  if (m->getDimension() != 3)
-    return; /* no pyramids exist in 2D */
-  if (apf::countEntitiesOfType(m, apf::Mesh::HEX))
-    return; /* meshadapt can't even look at hexes */
-  ma::Input* in = ma::makeAdvanced(ma::configureIdentity(m));
-  in->shouldCleanupLayer = true;
-  ma::adapt(in);
 }
 
 const char* gmi_path = NULL;
@@ -146,290 +124,12 @@ void getConfig(int argc, char** argv) {
   }
 }
 
-// put the extrude tagging here which 1) loops over the mesh faces classified on the model face that is the root of the extrude
-// create a tag on vertices fathers
-// get the list of mesh rootfaces classified on the source geometric model face
-// for each srcFace in rootfaces
-// get the ids of downward adjacent vertices, store that as an array of size 3
-// get the upward adjacent region srcRgn
-// call Extrusion_3DRegionsAndLayerFaces(srcRgn,...)
-// for each face in the returned list of faces
-// get the downward adjacent vertices of face - they will be in the same order as the srcFace ids
-// set the fathers tag
-// assert that the x,y coordinates of each vertex matches the srcFace vertex coordinates within some relaxed
-// tolerance - sanity check my assumption that face-to-vtx adjaceny is always the same order
-void addFathersTag(pGModel simModel, pParMesh sim_mesh, apf::Mesh* simApfMesh, const char* extrusionFaceFile) {
-  if(!extrusionFaceFile) return;
-  // create a tag on vertices fathers
-  pMeshDataId myFather = MD_newMeshDataId( "fathers2D");
-  
-  pPList listV,listVn,faces,regions;
-  pFace face;
-  pRegion region;
-  pVertex vrts[4];
-  int dir, err;
-  int count2D=0;
-  pGFace gface;
-  pVertex entV;
-  pMesh meshP= PM_mesh	(sim_mesh, 0 );	
-
-  char coordfilename[64];
-  char cnnfilename[64];
-  sprintf(coordfilename, "geom.crd");
-  sprintf(cnnfilename, "geom.cnn");
-  FILE* fcr = fopen(coordfilename, "w");
-  FILE* fcn = fopen(cnnfilename, "w");
-
-  FILE* fid = fopen(extrusionFaceFile, "r"); // helper file that contains all faces with extrusions
-  assert(fid);
-  double VdisTol=1e-12;
-  while(1 == fscanf(fid,"%d",&ExtruRootId)) {
-    pGFace ExtruRootFace=NULL;
-    fprintf(stderr,"ExtruRootId= %d \n",ExtruRootId);
-    //find the root face of the extrusion
-    GFIter gfIter=GM_faceIter(simModel);
-    while ( (gface=GFIter_next(gfIter))) {
-      int id = GEN_tag(gface);
-      if(id==ExtruRootId) ExtruRootFace=gface;
-    }
-    assert(ExtruRootFace != NULL);
-    // all of the work so far assumes translation extrusion.  Rotation extrusion (sweeping extruded entiy over an arc of some angle about 
-    // a given axis) is useful but this would require some code change.  The principle is the same.  Every root entity has another 
-    // oppositeRoot entity whose position obeys a fixed angle rotation about a fixed axis.
-    pPList gRegions,gFaces,gEdges,gVertices;
-    double parFace[2]; 
-    double normal[3]; 
-    double pLow, pHigh;
-    double coordGVSelf[3];
-    double coordGVOther[3];
-    double xmin[3] = {1.0e8, 1.0e8, 1.0e8};
-    double xmax[3] = {-1.0e8, -1.0e8, -1.0e8};
-    GF_parRange ( ExtruRootFace, 0, &pLow, &pHigh);
-    parFace[0] = ( pLow + pHigh ) * 0.5;
-    GF_parRange ( ExtruRootFace, 1, &pLow, &pHigh);
-    parFace[1] = ( pLow + pHigh ) * 0.5;
-    GF_normal(ExtruRootFace,parFace,normal);
-    gRegions=GF_regions(ExtruRootFace); //pPList of model regions adjacent to root model Fac
-    pGRegion gRegion = (pGRegion) PList_item( gRegions , 0 ); // there can be only one for extrusions
-    gVertices = GR_vertices(gRegion);
-    for( int j = 0; j < PList_size( gVertices ); j++ ){
-      pGVertex gVertex = (pGVertex) PList_item( gVertices , j );
-      GV_point( gVertex , coordGVOther );
-      for( int i = 0; i < 3; i++) {
-        xmin[i]=std::min(xmin[i],coordGVOther[i]);
-        xmax[i]=std::max(xmax[i],coordGVOther[i]);
-      }
-    }
-    // just in case normal is not a unit vector
-    double nLength=(normal[0]*normal[0]+normal[1]*normal[1]+normal[2]*normal[2]);
-    for( int i = 0; i < 3; i++) normal[i]=normal[i]/nLength;
-
-    double sepVec[3];
-    for( int i = 0; i < 3; i++) sepVec[i]=xmax[i]-xmin[i];  
-    double ExtruDistance=abs(sepVec[0]*normal[0]+sepVec[1]*normal[1]+sepVec[2]*normal[2]);
-    PList_delete(gRegions);
-    PList_delete(gVertices);
-   
-
-    FIter fIter = M_classifiedFaceIter( meshP, ExtruRootFace, 0 ); // 0 says I don't want closure
-    while ((face = FIter_next(fIter))) {
-      dir=1;
-      listV= F_vertices(face, dir);
-      void *iter = 0;        // Must initialize to 0
-      int i=0;
-      while ((entV =(pVertex)PList_next(listV, &iter))) { //loop over plist of vertices
-        // Process each item in list
-        vrts[i] = (pVertex)entV;
-        i++;
-      }
-      int nvert=i;
-      PList_delete(listV);
-
-      double coordNewPt[nvert][3];
-      for(i=0; i< nvert ; i++) {
-        int* markedData;
-        if(!EN_getDataPtr((pEntity)vrts[i],myFather,(void**)&markedData)){  // not sure about marked yet
-          gType  vClassDim;
-          pGEntity vConG;
-          int foundESTag = 0;
-          int foundETag = 0;
-          int foundEETag = 0;
-          double de; //dx,dy;
-          vClassDim=V_whatInType(vrts[i]);
-          vConG=V_whatIn(vrts[i]);
-          if(vClassDim == 0) {// classified on vert so vert->edge->vert
-              foundESTag = GEN_tag( (pGVertex) vConG ); // found Extrusion Start Tag
-              gEdges = GV_edges( (pGVertex) vConG ); // pPList of model edges adjacent to root model vertex
-              for(int j = 0; j < PList_size( gEdges ); j++ ){
-                pGEdge gEdge = (pGEdge) PList_item( gEdges , j ); // candidate edge
-                pGVertex gVert0 = GE_vertex( gEdge , 0 );
-                pGVertex gVert1 = GE_vertex( gEdge , 1 );
-                if( gVert0 == (pGVertex) vConG) { //1 is at other end of edge
-                   GV_point( gVert1 , coordGVOther );
-                   GV_point( gVert0 , coordGVSelf );
-                   for( int i = 0; i < 3; i++) sepVec[i]=coordGVOther[i]-coordGVSelf[i];  
-                   de=abs(sepVec[0]*normal[0]+sepVec[1]*normal[1]+sepVec[2]*normal[2]);
-                   if( abs(de-ExtruDistance) < VdisTol ) {
-                      foundETag = GEN_tag( gEdge );
-                      foundEETag = GEN_tag( gVert1 );
-                   }
-                } else { // 0 is at the other edge
-                   GV_point( gVert0 , coordGVOther );
-                   GV_point( gVert1 , coordGVSelf );
-                   for( int i = 0; i < 3; i++) sepVec[i]=coordGVOther[i]-coordGVSelf[i];  
-                   de=abs(sepVec[0]*normal[0]+sepVec[1]*normal[1]+sepVec[2]*normal[2]);
-                   if( abs(de-ExtruDistance) < VdisTol ) {
-                      foundETag = GEN_tag(gEdge);
-                      foundEETag = GEN_tag(gVert0);
-                   }
-                }
-              } 
-              PList_delete(gEdges);
-	  } else if(vClassDim == 1) {   // classified on edge so edge->face->edge
-              foundESTag = GEN_tag( (pGEdge) vConG ); // found Extrusion Start Tag
-              GE_parRange ( (pGEdge) vConG, &pLow, &pHigh);
-              parFace[0] = ( pLow + pHigh ) * 0.5;
-              GE_point( (pGEdge) vConG , parFace[0], coordGVSelf ); 
-              gFaces = GE_faces( (pGEdge) vConG); // pPList of model faces adjacent to root model edge
-              for(int j = 0; j < PList_size( gFaces ); j++ ){
-                pGFace gFace = (pGFace) PList_item( gFaces , j ); // candidate face
-                gEdges = GF_edges( gFace ); // pPList of model edges of jth adjacent face
-                for(int k = 0; k < PList_size( gEdges ); k++ ){ // loop over that pPlist
-                  pGEdge gEdge = (pGEdge)  PList_item( gEdges , k ); // candidate edge on candidate face
-                  if( gEdge != (pGEdge) vConG ) { // exclude root classified edge
-                    GE_parRange ( gEdge, &pLow, &pHigh);
-                    parFace[0] = ( pLow + pHigh ) * 0.5;
-                    GE_point( gEdge , parFace[0], coordGVOther ); 
-                    for( int i = 0; i < 3; i++) sepVec[i]=coordGVOther[i]-coordGVSelf[i];  
-                    de=abs(sepVec[0]*normal[0]+sepVec[1]*normal[1]+sepVec[2]*normal[2]);
-                    if( abs(de-ExtruDistance) < VdisTol ) {
-                       foundETag = GEN_tag( gFace ); // found Extruded Tag
-                       foundEETag = GEN_tag( gEdge );   // found Extrusion End Tag
-                    }
-                  }
-                }
-                PList_delete(gEdges);
-              }
-              PList_delete(gFaces);
-	   } else if(vClassDim == 2) {   // classified on face so face->region->face
-              foundESTag = GEN_tag( (pGFace) vConG ); // found Extrusion Start Tag
-              GF_parRange ( (pGFace) vConG, 0, &pLow, &pHigh);
-              parFace[0] = ( pLow + pHigh ) * 0.5;
-              GF_parRange ( (pGFace) vConG, 1, &pLow, &pHigh);
-              parFace[1] = ( pLow + pHigh ) * 0.5;
-              GF_point( (pGFace) vConG, parFace , coordGVSelf );
-              gRegions = GF_regions( (pGFace) vConG ); //pPList of model regions adjacent to root model Fac
-              pGRegion gRegion = (pGRegion) PList_item( gRegions , 0 ); // there can be only one for extrusions
-              gFaces = GR_faces( gRegion );
-              for( int j = 0; j < PList_size( gFaces ); j++ ){
-                pGFace gFace = (pGFace) PList_item( gFaces , j );
-                if( gFace != (pGFace) vConG ) { // exclude root classified face
-                  GF_parRange ( gFace, 0, &pLow, &pHigh);
-                  parFace[0] = ( pLow + pHigh ) * 0.5;
-                  GF_parRange ( gFace, 1, &pLow, &pHigh);
-                  parFace[1] = ( pLow + pHigh ) * 0.5;
-                  GF_point( (pGFace) gFace , parFace , coordGVOther );
-                  for( int i = 0; i < 3; i++) sepVec[i]=coordGVOther[i]-coordGVSelf[i];  
-                  de=abs(sepVec[0]*normal[0]+sepVec[1]*normal[1]+sepVec[2]*normal[2]);
-                  if( abs(de-ExtruDistance) < VdisTol ) {
-                    foundETag = GEN_tag( gRegion ); // found Extruded Tag
-                    foundEETag = GEN_tag( gFace );   // found Extrusion End Tag
-                  }
-                }
-              }
-              PList_delete( gFaces ); 
-	   } else {
-             PCU_ALWAYS_ASSERT(false);
-	   }
-          PCU_ALWAYS_ASSERT(foundEETag != 0);
-          count2D++;
-          int* vtxData = new int[1];
-          vtxData[0] = count2D;
-          EN_attachDataPtr((pEntity)vrts[i],myFather,(void*)vtxData);
-          V_coord(vrts[i],coordNewPt[i]);
-
-          fprintf ( fcr, "%.15E %.15E %d %d %d %d  \n", coordNewPt[i][0],coordNewPt[i][1], vClassDim, foundESTag, foundETag, foundEETag );
-        }
-      }
-
-      double coordFather[nvert][3];
-      int fatherIds[4]; //store the ids of the fathers (vertices) on the root face
-      for(i=0; i< nvert ; i++) {
-        int* fatherIdPtr;
-        const int exists = EN_getDataPtr((pEntity)vrts[i],myFather,(void**)&fatherIdPtr);
-        assert(exists);
-        fatherIds[i] = fatherIdPtr[0];
-        V_coord(vrts[i],coordFather[i]);
-        fprintf ( fcn, "%d ", fatherIds[i]);
-      }
-      fprintf ( fcn, "\n");
-
-      dir=0;  // 1 fails
-      // get the upward adjacent region srcRgn
-      region = F_region(face, dir );  // 0 is the negative normal which I assume for a face on the boundary in is interior.
-      if(region==NULL) { // try other dir
-        dir=1;  // 1 fails
-        region = F_region(face, dir );  // 0 is the negative normal which I assume for a face on the boundary in is interior.
-      }
-
-      regions=PList_new();
-      faces=PList_new();
-      err = Extrusion_3DRegionsAndLayerFaces(region, regions, faces, 1);
-      PList_delete(regions); // not used so delete
-      if(err!=1 && !PCU_Comm_Self())
-        fprintf(stderr, "Extrusion_3DRegionsAndLayerFaces returned %d for err \n", err);
-
-      // for each face in the returned list of faces
-      iter=0;
-      pFace sonFace;
-      int iface=0;
-      dir=0;
-      while( (sonFace = (pFace)PList_next(faces, &iter)) ) { //loop over plist of vertices
-        if(iface !=0) {  // root face is in the stack but we already took care of it above
-          // get the downward adjacent vertices of face - they will be in the same order as the srcFace ids
-          listVn= F_vertices(sonFace, dir);
-          void *iter2=0; // Must initialize to 0
-          i=0;
-          int my2Dfath;
-          pVertex  sonVtx;
-          double dist, dx, dy, distMin;
-          double coordSon[3];
-          int iMin;
-          while( (sonVtx = (pVertex)PList_next(listVn, &iter2)) ) { //loop over plist of vertices
-            V_coord(sonVtx,coordSon);
-            distMin=1.0e7;
-            for(i=0; i< nvert; i++){
-              dx=coordSon[0]-coordFather[i][0];
-              dy=coordSon[1]-coordFather[i][1];
-              dist=dx*dx+dy*dy;
-              if(dist < distMin) {
-                iMin=i;
-                distMin=dist;
-              }
-            }
-            my2Dfath=fatherIds[iMin];
-            int* vtxData = new int[1];
-            vtxData[0] = my2Dfath;
-            EN_attachDataPtr((pEntity)sonVtx,myFather,(void*)vtxData);
-          }
-          PList_delete(listVn);
-        }
-        iface++;
-      }
-      PList_delete(faces);
-    } //end root face iterator
-  }
-  apf::MeshSIM* cake = reinterpret_cast<apf::MeshSIM*>(simApfMesh);
-  cake->createIntTag("fathers2D", myFather, 1);
-}
-
 int main(int argc, char** argv)
 {
   MPI_Init(&argc, &argv);
   PCU_Comm_Init();
   lion_set_verbosity(1);
   MS_init();
-  SimAdvMeshing_start(); //for fancy BL/extrusion queries
   SimModel_start();
   Sim_readLicenseFile(NULL);
   SimPartitionedMesh_start(&argc,&argv);
@@ -472,8 +172,6 @@ int main(int argc, char** argv)
 
   apf::Mesh* simApfMesh = apf::createMesh(sim_mesh);
 
-  addFathersTag(simModel, sim_mesh, simApfMesh, extruRootPath);
-
   double t2 = PCU_Time();
   if(!PCU_Comm_Self())
     fprintf(stderr, "created the apf_sim mesh in %f seconds\n", t2-t1);
@@ -492,47 +190,59 @@ int main(int argc, char** argv)
   a_mesh->verify();
   //a_mesh->writeNative(smb_path);
 
-
-  int order = 3; 
-  //int order = atoi(argv[]); 
+  int order = 3;
+  //int order = atoi(argv[]);
   crv::BezierCurver bc(a_mesh,order,0);
   bc.run();
 
+  auto o_lib = Omega_h::Library(&argc, &argv);
+  Omega_h::Mesh o_mesh(&o_lib);
+  apf::to_omega_h(&o_mesh, a_mesh);
 
-    auto o_lib = Omega_h::Library(&argc, &argv);
-    Omega_h::Mesh o_mesh(&o_lib);
-    apf::to_omega_h(&o_mesh, a_mesh);
+  auto opts = Omega_h::AdaptOpts(&o_mesh);
+  opts.verbosity = Omega_h::EXTRA_STATS;
+  opts.length_histogram_max = 2.0;
+  opts.max_length_allowed = opts.max_length_desired*2.0;
+  opts.should_smooth_snap = 0;
+  opts.should_coarsen = 0;
+  opts.should_swap = 0;
+  opts.should_coarsen_slivers = 0;
+  opts.check_crv_qual = 0;
+  opts.min_quality_allowed = 0.1;
+  opts.min_quality_desired = 0.25;
+  int desired_group_nelems = 2000;
+  (approach_metric(&o_mesh, opts));
+  int nelems = o_mesh.nelems();
+  if (nelems < 8000) Omega_h::adapt(&o_mesh, opts);
 
-    Omega_h::vtk::FullWriter writer;
-    writer = Omega_h::vtk::FullWriter(
-        "/lore/joshia5/Meshes/curved/annulus3d-24_crvsmb2osh.vtk",
-        &o_mesh);
-    writer.write();
+  /*
+  Omega_h::vtk::FullWriter writer;
+  writer = Omega_h::vtk::FullWriter(
+      "/lore/joshia5/Meshes/curved/annulus3d-24_crvsmb2osh.vtk",
+      &o_mesh);
+  writer.write();
+  auto wireframe_mesh = Omega_h::Mesh(&o_lib);
+  wireframe_mesh.set_comm(o_mesh.comm());
+  Omega_h::build_cubic_wireframe_3d(&o_mesh, &wireframe_mesh, 10);
+  std::string vtuPath =
+    "/lore/joshia5/Meshes/curved/annulus3d-24-p2o_wire.vtu";
+  Omega_h::vtk::write_simplex_connectivity(vtuPath.c_str(), &wireframe_mesh, 1);
+  auto cubic_curveVtk_mesh = Omega_h::Mesh(&o_lib);
+  cubic_curveVtk_mesh.set_comm(o_mesh.comm());
+  Omega_h::build_cubic_curveVtk_3d(&o_mesh, &cubic_curveVtk_mesh, 10);
+  vtuPath = "/lore/joshia5/Meshes/curved/annulus3d-24-p2o.vtu";
+  Omega_h::vtk::write_simplex_connectivity(vtuPath.c_str(), &cubic_curveVtk_mesh, 2);
+  */
 
-    auto wireframe_mesh = Omega_h::Mesh(&o_lib);
-    wireframe_mesh.set_comm(o_mesh.comm());
-    Omega_h::build_cubic_wireframe_3d(&o_mesh, &wireframe_mesh, 10);
-    std::string vtuPath =
-      "/lore/joshia5/Meshes/curved/annulus3d-24-p2o_wire.vtu";
-    Omega_h::vtk::write_simplex_connectivity(vtuPath.c_str(), &wireframe_mesh, 1);
-    auto cubic_curveVtk_mesh = Omega_h::Mesh(&o_lib);
-    cubic_curveVtk_mesh.set_comm(o_mesh.comm());
-    Omega_h::build_cubic_curveVtk_3d(&o_mesh, &cubic_curveVtk_mesh, 10);
-    vtuPath = "/lore/joshia5/Meshes/curved/annulus3d-24-p2o.vtu";
-    Omega_h::vtk::write_simplex_connectivity(vtuPath.c_str(), &cubic_curveVtk_mesh, 2);
+  a_mesh->destroyNative();
+  apf::destroyMesh(a_mesh);
 
-    a_mesh->destroyNative();
-    apf::destroyMesh(a_mesh);
-
-    apf::Mesh2* am2 = apf::makeEmptyMdsMesh(mdl, o_mesh.dim(), false);
-    printf("ok0\n");
-    apf::from_omega_h(am2, &o_mesh);
-    //am2->writeNative(argv[3]);
-    am2->destroyNative();
-    apf::destroyMesh(am2);
-
-  {
-  }
+  apf::Mesh2* am2 = apf::makeEmptyMdsMesh(mdl, o_mesh.dim(), false);
+  printf("ok0\n");
+  apf::from_omega_h(am2, &o_mesh);
+  //am2->writeNative(argv[3]);
+  am2->destroyNative();
+  apf::destroyMesh(am2);
 
   Progress_delete(progress);
   gmi_sim_stop();

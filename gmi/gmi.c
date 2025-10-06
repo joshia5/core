@@ -71,7 +71,9 @@ int gmi_tag(struct gmi_model* m, struct gmi_ent* e)
 
 struct gmi_ent* gmi_find(struct gmi_model* m, int dim, int tag)
 {
-  printf("calling ops find\n");
+  printf("calling ops find dim %d tag %d \n", dim, tag);
+  //auto op=m->ops();
+  //return op->find(m, dim, tag);
   return m->ops->find(m, dim, tag);
   printf("exiting ops find\n");
 }
